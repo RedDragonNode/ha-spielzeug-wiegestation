@@ -1,0 +1,101 @@
+# Vier Wägezellen mit je einem HX711-Modul. Jede Zelle meldet ihren Rohwert an Home Assistant,
+# die Integration rechnet daraus Tara, Eichung und Gesamtgewicht (Eichen ohne neues Flashen).
+#
+# Pins am Waveshare ESP32-P4-ETH, rechte Stiftleiste von oben (USB-C) nach unten:
+#   3V3 | GPIO20 | GPIO21 | GND | GPIO22 | GPIO23 | RUN | GPIO26 | GND | GPIO27 | GPIO32 | GPIO33 | GPIO46 | GND | GPIO47 | GPIO48
+# Die Pins lassen sich in der eigenen Gerätedatei unter `substitutions:` ändern.
+
+substitutions:
+  cell1_dout: GPIO20
+  cell1_clk: GPIO21
+  cell2_dout: GPIO22
+  cell2_clk: GPIO23
+  cell3_dout: GPIO26
+  cell3_clk: GPIO27
+  cell4_dout: GPIO47
+  cell4_clk: GPIO48
+
+# Jede Zelle liefert etwa 7 Werte pro Sekunde (der HX711 rechnet mit 10 Werten pro Sekunde, abgefragt wird
+# alle 150 ms, damit er immer fertig ist). Davon geht der Mittelwert von 7 Werten (etwa eine Sekunde) an
+# Home Assistant, aber nur, wenn er sich um mehr als 60 Zähler (etwa 0,15 g) geändert hat, sonst alle 15 s.
+# Ein unbeschalteter Eingang hängt über den Pull-up auf „nicht bereit“ und meldet nichts.
+sensor:
+  - platform: hx711
+    id: cell_1
+    name: Zelle 1
+    dout_pin:
+      number: ${cell1_dout}
+      mode:
+        input: true
+        pullup: true
+    clk_pin: ${cell1_clk}
+    gain: 128
+    update_interval: 150ms
+    entity_category: diagnostic
+    filters:
+      - sliding_window_moving_average:
+          window_size: 7
+          send_every: 7
+      - or:
+          - delta: 60
+          - heartbeat: 15s
+
+  - platform: hx711
+    id: cell_2
+    name: Zelle 2
+    dout_pin:
+      number: ${cell2_dout}
+      mode:
+        input: true
+        pullup: true
+    clk_pin: ${cell2_clk}
+    gain: 128
+    update_interval: 150ms
+    entity_category: diagnostic
+    filters:
+      - sliding_window_moving_average:
+          window_size: 7
+          send_every: 7
+      - or:
+          - delta: 60
+          - heartbeat: 15s
+
+  - platform: hx711
+    id: cell_3
+    name: Zelle 3
+    dout_pin:
+      number: ${cell3_dout}
+      mode:
+        input: true
+        pullup: true
+    clk_pin: ${cell3_clk}
+    gain: 128
+    update_interval: 150ms
+    entity_category: diagnostic
+    filters:
+      - sliding_window_moving_average:
+          window_size: 7
+          send_every: 7
+      - or:
+          - delta: 60
+          - heartbeat: 15s
+
+  - platform: hx711
+    id: cell_4
+    name: Zelle 4
+    dout_pin:
+      number: ${cell4_dout}
+      mode:
+        input: true
+        pullup: true
+    clk_pin: ${cell4_clk}
+    gain: 128
+    update_interval: 150ms
+    entity_category: diagnostic
+    filters:
+      - sliding_window_moving_average:
+          window_size: 7
+          send_every: 7
+      - or:
+          - delta: 60
+          - heartbeat: 15s

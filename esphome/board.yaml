@@ -1,8 +1,8 @@
-# Board-Test für das Waveshare ESP32-P4-ETH (mit PoE-Modul): Ethernet, Anbindung an Home Assistant
-# und ein paar Diagnose-Werte. Noch ohne Waage.
+# Grundlage der Firmware für das Waveshare ESP32-P4-ETH (mit PoE-Modul): Chip, Ethernet und ein paar
+# Diagnose-Werte. Die Waage selbst steht in waage.yaml.
 #
-# Wird als Paket in die eigene Gerätedatei eingebunden, siehe esphome/README.md. API-Schlüssel und
-# Update-Kennwort stehen nur in der eigenen Gerätedatei, nie hier.
+# Wird als Paket in die eigene Gerätedatei eingebunden, siehe esphome/README.md. API-Schlüssel stehen
+# nur in der eigenen Gerätedatei, nie hier.
 
 # Das Board hat einen Chip ab Revision 3 (Serienchip). Das ESPHome-Board `esp32-p4-evboard` ist dagegen
 # für Vorserienchips gebaut und lässt ihn in einer Dauerschleife neu starten, darum nur `variant`.
