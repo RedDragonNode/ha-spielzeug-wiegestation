@@ -1,0 +1,137 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Toy weighing station",
+        "description": "Choose the four raw-value sensors of the load cells, as the firmware reports them (Zelle 1 to Zelle 4 on the ESPHome device). If the firmware from this project is running, they are already suggested. Afterwards you calibrate the scale under \"Configure\".",
+        "data": {
+          "name": "Name",
+          "cell_1": "Cell 1 (raw value)",
+          "cell_2": "Cell 2 (raw value)",
+          "cell_3": "Cell 3 (raw value)",
+          "cell_4": "Cell 4 (raw value)"
+        }
+      },
+      "reconfigure": {
+        "title": "Change cells",
+        "description": "Choose different sensors for the four cells. The calibration stays saved. If you changed the wiring or the order of the cells, calibrate the scale again afterwards.",
+        "data": {
+          "cell_1": "Cell 1 (raw value)",
+          "cell_2": "Cell 2 (raw value)",
+          "cell_3": "Cell 3 (raw value)",
+          "cell_4": "Cell 4 (raw value)"
+        }
+      }
+    },
+    "error": {
+      "duplicate_cells": "Each cell needs its own sensor. At least two fields point to the same one."
+    },
+    "abort": {
+      "already_configured": "This scale is already set up.",
+      "reconfigure_successful": "Saved."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Toy weighing station",
+        "description": "What would you like to do? You set the tare with the \"Tare\" button on the device.",
+        "menu_options": {
+          "calibrate": "Calibrate the scale",
+          "settings": "Set thresholds",
+          "reset_calibration": "Reset calibration"
+        }
+      },
+      "settings": {
+        "title": "Thresholds",
+        "description": "The scale is \"steady\" when the weight varies by no more than the tolerance within the set time. It reports \"occupied\" from the threshold and releases it again when the weight drops well below.",
+        "data": {
+          "stable_seconds": "Steady after (seconds)",
+          "stable_tolerance_g": "Tolerance for \"steady\" (grams)",
+          "occupied_g": "Occupied from (grams)"
+        }
+      },
+      "reset_calibration": {
+        "title": "Reset calibration",
+        "description": "The saved calibration and the tare are deleted. Afterwards the scale shows no weight until you calibrate it again. Reset it?"
+      },
+      "calibrate": {
+        "title": "Calibrate: empty plate",
+        "description": "**Step 1.** Take everything off the plate, including trays and pads, and wait about two seconds until nothing wobbles. Then tap **Submit**. The scale remembers the zero point of each cell."
+      },
+      "calibrate_weight": {
+        "title": "Calibrate: weight in the middle",
+        "description": "**Step 2.** Put a weight whose mass you know exactly in the **middle** of the plate and wait until it sits still. Enter it in grams. The heavier the weight (500 g to 1 kg is good), the more accurate the calibration. Under 100 g is too light. A sealed pack of sugar or flour with a printed weight works if you have no calibration weight. Euro coins weigh: 1 cent 2.30 g, 2 cent 3.06 g, 5 cent 3.92 g, 10 cent 4.10 g, 20 cent 5.74 g, 50 cent 7.80 g, 1 euro 7.50 g, 2 euro 8.50 g.",
+        "data": {
+          "weight_g": "Weight (grams)"
+        }
+      },
+      "calibrate_signs": {
+        "title": "Calibrate: one cell points the other way",
+        "description": "Not all cells react in the same direction when you put the weight on. On at least one cell the wires `A+` and `A−` on the HX711 are probably swapped. That is not an error: the calibration calculates a negative factor for that cell. For that, each cell has to be measured on its own. Tap **Submit** and put the weight directly over each of the four cells in turn."
+      },
+      "calibrate_more": {
+        "title": "Calibrate: more accurate or done?",
+        "description": "With the weight in the middle the scale can already be calibrated, with the same factor for all four cells. It gets more accurate if you then put the same weight directly over each of the four cells in turn. Then each cell gets its own factor.",
+        "menu_options": {
+          "calibrate_corner": "More accurate: put the weight over each cell",
+          "calibrate_done": "Done: use only the middle"
+        }
+      },
+      "calibrate_corner": {
+        "title": "Calibrate: weight over cell {corner}",
+        "description": "Put the weight ({weight} g) directly **over cell {corner}**, as close as possible to where the cell sits. Wait until it sits still and tap **Submit**."
+      }
+    },
+    "error": {
+      "not_stable": "The scale is not steady yet. Wait two seconds until nothing wobbles and try again.",
+      "no_data": "The cells are not reporting values. Is the ESPHome device running, and are the sensors available?",
+      "no_load": "Almost no change was measured. Is the weight on the plate, and are the cells connected?"
+    },
+    "abort": {
+      "calibration_saved": "The scale is calibrated. The largest deviation from the weights you put on is {details} %. If needed, set a tray to zero with the \"Tare\" button.",
+      "calibration_saved_center": "The scale is calibrated, all four cells have the same factor. If needed, set a tray to zero with the \"Tare\" button.",
+      "calibration_rejected": "The calibration was not saved because it deviates by {details} % from the weights you put on. That points to a wobbling plate, a weight that slipped, or a wrong connection. Check the build and calibrate again.",
+      "calibration_reset": "The calibration has been deleted.",
+      "not_enough_positions": "Nothing can be calculated from these measurements. The weights spread the load too similarly. Calibrate again and put the weight really over each cell."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "weight": {
+        "name": "Weight"
+      },
+      "cell_weight": {
+        "name": "Weight cell {number}"
+      },
+      "calibration": {
+        "name": "Calibration",
+        "state": {
+          "not_calibrated": "Not calibrated",
+          "calibrated": "Calibrated"
+        }
+      }
+    },
+    "binary_sensor": {
+      "stable": {
+        "name": "Scale steady"
+      },
+      "occupied": {
+        "name": "Occupied"
+      }
+    },
+    "button": {
+      "tare": {
+        "name": "Tare"
+      }
+    }
+  },
+  "exceptions": {
+    "no_data": {
+      "message": "The cells are not reporting values."
+    },
+    "not_calibrated": {
+      "message": "The scale is not calibrated yet. You can calibrate it under \"Configure\"."
+    }
+  }
+}

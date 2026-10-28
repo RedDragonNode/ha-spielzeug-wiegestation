@@ -1,0 +1,137 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Spielzeug Wiegestation",
+        "description": "Wähle die vier Rohwert-Sensoren der Wägezellen, so wie die Firmware sie meldet (Zelle 1 bis Zelle 4 am ESPHome-Gerät). Wenn die Firmware aus diesem Projekt läuft, sind sie schon vorgeschlagen. Danach eichst du die Waage unter „Konfigurieren“.",
+        "data": {
+          "name": "Name",
+          "cell_1": "Zelle 1 (Rohwert)",
+          "cell_2": "Zelle 2 (Rohwert)",
+          "cell_3": "Zelle 3 (Rohwert)",
+          "cell_4": "Zelle 4 (Rohwert)"
+        }
+      },
+      "reconfigure": {
+        "title": "Zellen ändern",
+        "description": "Wähle andere Sensoren für die vier Zellen. Die Eichung bleibt gespeichert. Hast du die Verdrahtung oder die Reihenfolge der Zellen geändert, eichst du die Waage danach neu.",
+        "data": {
+          "cell_1": "Zelle 1 (Rohwert)",
+          "cell_2": "Zelle 2 (Rohwert)",
+          "cell_3": "Zelle 3 (Rohwert)",
+          "cell_4": "Zelle 4 (Rohwert)"
+        }
+      }
+    },
+    "error": {
+      "duplicate_cells": "Jede Zelle braucht einen eigenen Sensor. Mindestens zwei Felder zeigen auf denselben."
+    },
+    "abort": {
+      "already_configured": "Diese Waage ist schon eingerichtet.",
+      "reconfigure_successful": "Gespeichert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Spielzeug Wiegestation",
+        "description": "Was möchtest du tun? Die Tara setzt du mit der Taste „Tara“ am Gerät.",
+        "menu_options": {
+          "calibrate": "Waage eichen",
+          "settings": "Schwellen einstellen",
+          "reset_calibration": "Eichung zurücksetzen"
+        }
+      },
+      "settings": {
+        "title": "Schwellen",
+        "description": "„Ruhig“ ist die Waage, wenn das Gewicht in der eingestellten Zeit höchstens um die Toleranz schwankt. „Belegt“ meldet sie ab der Schwelle und gibt es wieder frei, wenn das Gewicht deutlich darunter fällt.",
+        "data": {
+          "stable_seconds": "Ruhig nach (Sekunden)",
+          "stable_tolerance_g": "Toleranz für „ruhig“ (Gramm)",
+          "occupied_g": "Belegt ab (Gramm)"
+        }
+      },
+      "reset_calibration": {
+        "title": "Eichung zurücksetzen",
+        "description": "Die gespeicherte Eichung und die Tara werden gelöscht. Danach zeigt die Waage kein Gewicht mehr, bis du sie neu eichst. Wirklich zurücksetzen?"
+      },
+      "calibrate": {
+        "title": "Eichen: leere Platte",
+        "description": "**Schritt 1.** Nimm alles von der Platte, auch Schalen und Unterlagen, und warte etwa zwei Sekunden, bis nichts mehr wackelt. Dann tippe auf **Senden**. Die Waage merkt sich den Nullpunkt jeder Zelle."
+      },
+      "calibrate_weight": {
+        "title": "Eichen: Gewicht in der Mitte",
+        "description": "**Schritt 2.** Lege ein Gewicht, dessen Masse du genau kennst, in die **Mitte** der Platte und warte, bis es ruhig liegt. Trage es in Gramm ein. Je schwerer das Gewicht (500 g bis 1 kg sind gut), desto genauer wird die Eichung. Ein Gewicht unter 100 g ist zu leicht. Ein Päckchen Zucker oder Mehl mit aufgedrucktem Gewicht geht, wenn du kein Eichgewicht hast. Euro-Münzen wiegen: 1 Cent 2,30 g, 2 Cent 3,06 g, 5 Cent 3,92 g, 10 Cent 4,10 g, 20 Cent 5,74 g, 50 Cent 7,80 g, 1 Euro 7,50 g, 2 Euro 8,50 g.",
+        "data": {
+          "weight_g": "Gewicht (Gramm)"
+        }
+      },
+      "calibrate_signs": {
+        "title": "Eichen: eine Zelle zeigt andersherum",
+        "description": "Beim Auflegen reagieren nicht alle Zellen in dieselbe Richtung. Bei mindestens einer Zelle sind vermutlich die Kabel `A+` und `A−` am HX711 vertauscht. Das ist kein Fehler: Die Eichung rechnet für diese Zelle einen negativen Faktor. Dafür muss aber jede Zelle einzeln gemessen werden. Tippe auf **Senden** und lege das Gewicht nacheinander direkt über jede der vier Zellen."
+      },
+      "calibrate_more": {
+        "title": "Eichen: genauer oder fertig?",
+        "description": "Mit dem Gewicht in der Mitte kann die Waage schon geeicht werden, dann haben alle vier Zellen denselben Faktor. Genauer wird es, wenn du dasselbe Gewicht danach nacheinander direkt über jede der vier Zellen legst. Dann bekommt jede Zelle ihren eigenen Faktor.",
+        "menu_options": {
+          "calibrate_corner": "Genauer: Gewicht über jede Zelle legen",
+          "calibrate_done": "Fertig: nur die Mitte verwenden"
+        }
+      },
+      "calibrate_corner": {
+        "title": "Eichen: Gewicht über Zelle {corner}",
+        "description": "Lege das Gewicht ({weight} g) direkt **über Zelle {corner}**, so nah wie möglich an die Stelle, an der die Zelle sitzt. Warte, bis es ruhig liegt, und tippe auf **Senden**."
+      }
+    },
+    "error": {
+      "not_stable": "Die Waage ist noch nicht ruhig. Warte zwei Sekunden, bis nichts mehr wackelt, und versuche es noch einmal.",
+      "no_data": "Die Zellen melden gerade keine Werte. Läuft das ESPHome-Gerät, und sind die Sensoren verfügbar?",
+      "no_load": "Es wurde fast keine Änderung gemessen. Liegt das Gewicht auf der Platte, und sind die Zellen angeschlossen?"
+    },
+    "abort": {
+      "calibration_saved": "Die Waage ist geeicht. Die größte Abweichung von den aufgelegten Gewichten beträgt {details} %. Jetzt kannst du bei Bedarf mit der Taste „Tara“ eine Schale auf null setzen.",
+      "calibration_saved_center": "Die Waage ist geeicht, alle vier Zellen haben denselben Faktor. Jetzt kannst du bei Bedarf mit der Taste „Tara“ eine Schale auf null setzen.",
+      "calibration_rejected": "Die Eichung wurde nicht gespeichert, weil sie um {details} % von den aufgelegten Gewichten abweicht. Das spricht für eine wackelnde Platte, ein verrutschtes Gewicht oder einen falschen Anschluss. Prüfe den Aufbau und eiche noch einmal.",
+      "calibration_reset": "Die Eichung ist gelöscht.",
+      "not_enough_positions": "Aus diesen Messungen lässt sich nichts berechnen. Die Gewichte haben die Last zu ähnlich verteilt. Eiche noch einmal und lege das Gewicht wirklich über jede Zelle."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "weight": {
+        "name": "Gewicht"
+      },
+      "cell_weight": {
+        "name": "Gewicht Zelle {number}"
+      },
+      "calibration": {
+        "name": "Eichung",
+        "state": {
+          "not_calibrated": "Nicht geeicht",
+          "calibrated": "Geeicht"
+        }
+      }
+    },
+    "binary_sensor": {
+      "stable": {
+        "name": "Waage ruhig"
+      },
+      "occupied": {
+        "name": "Belegt"
+      }
+    },
+    "button": {
+      "tare": {
+        "name": "Tara"
+      }
+    }
+  },
+  "exceptions": {
+    "no_data": {
+      "message": "Die Zellen melden gerade keine Werte."
+    },
+    "not_calibrated": {
+      "message": "Die Waage ist noch nicht geeicht. Eichen geht unter „Konfigurieren“."
+    }
+  }
+}
