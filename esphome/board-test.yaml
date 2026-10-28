@@ -1,0 +1,43 @@
+# Board-Test für das Waveshare ESP32-P4-ETH (mit PoE-Modul): Ethernet, Anbindung an Home Assistant
+# und ein paar Diagnose-Werte. Noch ohne Waage.
+#
+# Wird als Paket in die eigene Gerätedatei eingebunden, siehe esphome/README.md. API-Schlüssel und
+# Update-Kennwort stehen nur in der eigenen Gerätedatei, nie hier.
+
+esp32:
+  board: esp32-p4-evboard
+  variant: esp32p4
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+
+logger:
+  hardware_uart: UART0
+
+# Fester Ethernet-Anschluss des Boards (Chip IP101, den Takt liefert er auf GPIO50)
+ethernet:
+  type: IP101
+  mdc_pin: GPIO31
+  mdio_pin: GPIO52
+  power_pin: GPIO51
+  clk:
+    mode: CLK_EXT_IN
+    pin: GPIO50
+  phy_addr: 1
+
+# Schreibt beim Start Chip, Revision und Speicher ins Protokoll
+debug:
+
+text_sensor:
+  - platform: debug
+    reset_reason:
+      name: Letzter Neustart
+  - platform: ethernet_info
+    ip_address:
+      name: IP-Adresse
+    mac_address:
+      name: MAC-Adresse
+
+sensor:
+  - platform: uptime
+    name: Laufzeit
