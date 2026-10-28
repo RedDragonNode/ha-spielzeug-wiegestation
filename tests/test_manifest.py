@@ -21,6 +21,16 @@ def test_brand_images_exist() -> None:
     assert (ROOT / "docs" / "banner.png").is_file()
 
 
+def test_firmware_targets_production_silicon() -> None:
+    """Das Board hat einen Chip ab Revision 3. Das Board-Profil für Vorserienchips lässt ihn endlos neu starten."""
+    for path in (ROOT / "esphome").glob("*.yaml"):
+        text = path.read_text(encoding="utf-8")
+        if "esp32:" not in text:
+            continue
+        assert "board: esp32-p4-evboard" not in text, path.name
+        assert "engineering_sample: false" in text, path.name
+
+
 def test_firmware_never_holds_secrets() -> None:
     """API-Schlüssel und Kennwörter gehören nur in die Gerätedatei des Nutzers, nie in die Pakete im Repo."""
     for path in (ROOT / "esphome").glob("*.yaml"):

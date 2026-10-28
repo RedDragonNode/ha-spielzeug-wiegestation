@@ -19,7 +19,11 @@ esphome:
   friendly_name: Spielzeug Wiegestation
 
 packages:
-  board: github://RedDragonNode/ha-spielzeug-wiegestation/esphome/board-test.yaml@main
+  board:
+    url: https://github.com/RedDragonNode/ha-spielzeug-wiegestation
+    ref: main
+    files: [esphome/board-test.yaml]
+    refresh: always
 
 api:
   encryption:
