@@ -56,6 +56,8 @@ class StationManager:
         )
         self._occupied_g = float(entry.options.get(OPT_OCCUPIED, DEFAULT_OCCUPIED))
         self._occupied = False
+        self._shown: float | None = None
+        self._settled = False  # die Anzeige steht schon auf dem Mittelwert der ruhigen Zeit
         self._cancel_recheck: CALLBACK_TYPE | None = None
 
     # ------------------------------------------------------------- Laden, Starten, Stoppen
@@ -104,6 +106,11 @@ class StationManager:
             return None
         return scale.net_weight(self.calibration, self.raws)
 
+    @property
+    def display_weight(self) -> float | None:
+        """Das Gewicht, das der Sensor zeigt: bleibt stehen, solange es nur um das Rauschen schwankt."""
+        return self._shown
+
     def cell_weight(self, index: int) -> float | None:
         if self.raws is None or not self.calibrated:
             return None
@@ -140,7 +147,31 @@ class StationManager:
             self._tracker.add(_now(), scale.net_weight(self._provisional(), self.raws))
             self._update_occupied()
             self._schedule_recheck()
+        self._update_shown()
         self._notify()
+
+    def _update_shown(self) -> None:
+        """Das gezeigte Gewicht folgt erst, wenn es sich um mehr als die Toleranz bewegt hat.
+
+        Ohne das schriebe der Sensor bei jedem Rauschen des HX711 (etwa ein Gramm) einen neuen Wert in die Datenbank.
+        Die Zellen melden einzeln, das Gewicht läuft also über Teilsummen. Wird die Waage ruhig, setzt sich die Anzeige
+        darum einmal auf den Mittelwert der ruhigen Zeit.
+        """
+        weight = self.weight
+        if weight is None:
+            self._reset_shown()
+        elif self._shown is None or abs(weight - self._shown) >= self._tracker.tolerance:
+            self._shown = weight
+            self._settled = False
+        elif not self.stable:
+            self._settled = False
+        elif not self._settled:
+            self._shown = self._tracker.mean(_now())
+            self._settled = True
+
+    def _reset_shown(self) -> None:
+        self._shown = None
+        self._settled = False
 
     def _update_occupied(self) -> None:
         weight = self.weight
@@ -160,6 +191,7 @@ class StationManager:
     @callback
     def _recheck(self, _now_utc: object) -> None:
         self._cancel_recheck = None
+        self._update_shown()
         self._notify()
 
     @callback
@@ -179,6 +211,7 @@ class StationManager:
             raise HomeAssistantError(translation_domain=DOMAIN, translation_key="not_calibrated")
         self.calibration.tare_g = scale.gross_weight(self.calibration, raws)
         await self._save()
+        self._reset_shown()  # nach der Tara zeigt der Sensor sofort null
         self._refresh()
 
     async def async_set_zero(self) -> None:
@@ -187,6 +220,7 @@ class StationManager:
         self.calibration = scale.Calibration(zero=list(raws), factor=list(self.calibration.factor), calibrated=False)
         await self._save()
         self._tracker.reset()
+        self._reset_shown()
         self._refresh()
 
     def observe(self) -> list[float]:
@@ -200,10 +234,12 @@ class StationManager:
         self.calibration.tare_g = 0.0
         await self._save()
         self._tracker.reset()
+        self._reset_shown()
         self._refresh()
 
     async def async_reset_calibration(self) -> None:
         self.calibration = scale.Calibration()
         await self._save()
         self._tracker.reset()
+        self._reset_shown()
         self._refresh()

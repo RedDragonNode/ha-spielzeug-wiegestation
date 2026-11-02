@@ -44,10 +44,10 @@
       },
       "settings": {
         "title": "Thresholds",
-        "description": "The scale is \"steady\" when the weight varies by no more than the tolerance within the set time. It reports \"occupied\" from the threshold and releases it again when the weight drops well below.",
+        "description": "The scale is \"steady\" when the weight varies by no more than the tolerance within the set time. The displayed weight only changes once it has moved by more than the tolerance, so the noise of the cells does not write new values all the time. It reports \"occupied\" from the threshold and releases it again when the weight drops well below.",
         "data": {
           "stable_seconds": "Steady after (seconds)",
-          "stable_tolerance_g": "Tolerance for \"steady\" (grams)",
+          "stable_tolerance_g": "Tolerance for \"steady\" and display (grams)",
           "occupied_g": "Occupied from (grams)"
         }
       },

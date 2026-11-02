@@ -20,6 +20,7 @@ from .conftest import CELLS, Clock, entity_id_of, set_cells, setup_station, stat
 
 ZERO = [100000, 200000, 300000, 400000]
 FACTOR = 0.002  # g je Zähler, bei allen Zellen gleich
+ON_ONE_CELL = (1.0, 0.0, 0.0, 0.0)  # die ganze Last liegt auf Zelle 1: eine Änderung ist ein einziges Ereignis
 
 
 def raws_for(weight: float, shares=(0.25, 0.25, 0.25, 0.25)) -> list[float]:
@@ -68,6 +69,61 @@ async def test_weight_follows_the_cells_after_calibration(hass, clock: Clock) ->
     await hass.async_block_till_done()
     assert float(hass.states.get(weight).state) == pytest.approx(123.4, abs=0.05)
     assert hass.states.get(entity_id_of(hass, entry, "sensor", "calibration")).state == "calibrated"
+
+
+async def test_weight_ignores_noise_within_the_tolerance(hass, clock: Clock) -> None:
+    """Das Rauschen der Zellen (hier bis 1,4 g, Toleranz 2 g) schreibt keine neuen Werte."""
+    entry, _manager = await calibrated_station(hass, clock)
+    weight = entity_id_of(hass, entry, "sensor", "weight")
+    set_cells(hass, raws_for(300.0, ON_ONE_CELL))
+    await hass.async_block_till_done()
+    changes: list[str] = []
+    for noisy in (300.4, 298.7, 301.1, 299.2, 300.9, 298.6):
+        before = hass.states.get(weight).last_changed
+        set_cells(hass, raws_for(noisy, ON_ONE_CELL))
+        await hass.async_block_till_done()
+        if hass.states.get(weight).last_changed != before:
+            changes.append(hass.states.get(weight).state)
+    assert changes == []
+    assert float(hass.states.get(weight).state) == pytest.approx(300.0, abs=0.05)
+
+
+async def test_weight_follows_a_change_larger_than_the_tolerance(hass, clock: Clock) -> None:
+    entry, _manager = await calibrated_station(hass, clock)
+    weight = entity_id_of(hass, entry, "sensor", "weight")
+    for placed in (300.0, 302.5, 12.0, 0.0):
+        set_cells(hass, raws_for(placed, ON_ONE_CELL))
+        await hass.async_block_till_done()
+        assert float(hass.states.get(weight).state) == pytest.approx(placed, abs=0.05)
+
+
+async def test_the_tolerance_option_sets_the_display_band(hass, clock: Clock) -> None:
+    entry, _manager = await calibrated_station(hass, clock, stable_tolerance_g=0.5)
+    weight = entity_id_of(hass, entry, "sensor", "weight")
+    set_cells(hass, raws_for(100.0, ON_ONE_CELL))
+    await hass.async_block_till_done()
+    set_cells(hass, raws_for(100.4, ON_ONE_CELL))  # unter 0,5 g, der Sensor bleibt stehen
+    await hass.async_block_till_done()
+    assert float(hass.states.get(weight).state) == pytest.approx(100.0, abs=0.05)
+    set_cells(hass, raws_for(101.5, ON_ONE_CELL))  # darüber, der Sensor folgt
+    await hass.async_block_till_done()
+    assert float(hass.states.get(weight).state) == pytest.approx(101.5, abs=0.05)
+
+
+async def test_display_settles_on_the_mean_once_the_scale_is_steady(hass, clock: Clock) -> None:
+    """Die Zellen melden einzeln. Die Anzeige läuft bei einer Teilsumme los und setzt sich beim Ruhigwerden gerade."""
+    entry, _manager = await calibrated_station(hass, clock)
+    weight = entity_id_of(hass, entry, "sensor", "weight")
+    set_cells(hass, raws_for(300.0))
+    await hass.async_block_till_done()
+    clock.advance(3)
+    set_cells(hass, raws_for(303.0))  # Teilsummen 300,75, 301,5, 302,25, 303: ab 302,25 ist es mehr als die Toleranz
+    await hass.async_block_till_done()
+    assert float(hass.states.get(weight).state) == pytest.approx(302.25, abs=0.1)
+    clock.advance(3)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=3))
+    await hass.async_block_till_done()
+    assert float(hass.states.get(weight).state) == pytest.approx(303.0, abs=0.05)
 
 
 async def test_one_cell_unavailable_makes_the_scale_unavailable(hass, clock: Clock) -> None:
@@ -148,6 +204,19 @@ async def test_tare_sets_the_weight_on_the_plate_to_zero(hass, clock: Clock) -> 
     set_cells(hass, raws_for(80 + 55))
     await hass.async_block_till_done()
     assert float(hass.states.get(weight).state) == pytest.approx(55.0, abs=0.05)
+
+
+async def test_tare_shows_zero_even_when_the_old_value_was_within_the_tolerance(hass, clock: Clock) -> None:
+    """Zeigte der Sensor 0,5 g und es liegen 0,9 g auf, steht er nach der Tara sofort auf 0, nicht auf 0,5."""
+    entry, manager = await calibrated_station(hass, clock)
+    weight = entity_id_of(hass, entry, "sensor", "weight")
+    for grams, shown in ((3.0, 3.0), (0.5, 0.5), (0.9, 0.5)):  # 0,9 liegt innerhalb der Toleranz um 0,5
+        set_cells(hass, raws_for(grams, ON_ONE_CELL))
+        await hass.async_block_till_done()
+        assert float(hass.states.get(weight).state) == pytest.approx(shown, abs=0.05)
+    await manager.async_tare()
+    await hass.async_block_till_done()
+    assert hass.states.get(weight).state == "0.0"
 
 
 async def test_tare_needs_a_calibration_and_values(hass, clock: Clock) -> None:

@@ -19,7 +19,7 @@ Das Projekt hat zwei Teile in einem Repo:
 | **Firmware** (ESPHome) | [`esphome/`](esphome/README.md) | läuft auf dem Board und meldet vier Rohwerte |
 | **Integration** | `custom_components/spielzeug_wiegestation` | rechnet Tara, Eichung, Gewicht, „ruhig“ und „belegt“ |
 
-> **Stand 0.1.0:** Die Waage misst, eicht und meldet Gewicht, Ruhe und Belegung. Das Erkennen einzelner Spielzeuge am Gewicht kommt in 0.2.0.
+> **Stand 0.1.1:** Die Waage misst, eicht und meldet Gewicht, Ruhe und Belegung. Das Erkennen einzelner Spielzeuge am Gewicht kommt in 0.2.0.
 
 | Du willst … | Dafür |
 |---|---|
@@ -109,12 +109,13 @@ Die Rohwerte der Firmware sind auf der Geräteseite als „Zelle 1“ bis „Zel
 | Einstellung | Standard | Bedeutung |
 |---|---|---|
 | Ruhig nach | 2 s | so lange darf sich das Gewicht höchstens um die Toleranz ändern |
-| Toleranz für „ruhig“ | 2 g | größte Schwankung, die noch als ruhig gilt |
+| Toleranz für „ruhig“ und Anzeige | 2 g | größte Schwankung, die noch als ruhig gilt. Das angezeigte Gewicht ändert sich auch erst, wenn es sich um mehr als die Toleranz bewegt |
 | Belegt ab | 5 g | ab diesem Gewicht gilt die Platte als belegt |
 
 ## Hinweise
 
 - Die Rohwerte kommen etwa einmal pro Sekunde, wenn sich etwas ändert, sonst alle 15 Sekunden. Die Integration rechnet mit dem letzten Wert weiter. Für den Rekorder lohnt sich, die vier Rohwert-Sensoren und die Zellen-Gewichte vom Aufzeichnen auszunehmen.
+- Keine Waage steht ganz still: Der HX711 rauscht um etwa ein Gramm. Damit der Sensor `Gewicht` deshalb nicht ständig neue Werte in die Datenbank schreibt, bleibt er stehen, solange das Gewicht nur um weniger als die Toleranz schwankt, und setzt sich auf den Mittelwert, sobald die Waage ruhig ist. Zeigt er nach dem Auflegen eines Gewichts 1 g neben dem Soll, ist das die Toleranz, kein Fehler der Eichung. Wer feiner wiegen will, stellt die Toleranz kleiner.
 - Ohne Eichung rechnet die Waage nur mit einem Richtwert, damit „ruhig“ schon beim Eichen funktioniert. Das Gewicht zeigt sie erst danach.
 - Die Eichung liegt im Speicher von Home Assistant (nicht im Repo) und bleibt beim Neuladen und Neustarten erhalten. Beim Löschen der Integration wird sie mit entfernt.
 

@@ -168,3 +168,14 @@ class StabilityTracker:
             return False  # wir beobachten noch nicht lange genug
         values = [value for _, value in self._samples]
         return max(values) - min(values) <= self.tolerance
+
+    def mean(self, now: float) -> float:
+        """Mittelwert der letzten `seconds` Sekunden, jeder Wert so lange gewichtet, wie er galt."""
+        self._prune(now)
+        start = now - self.seconds
+        points = [(max(t, start), value) for t, value in self._samples]
+        ends = [t for t, _ in points[1:]] + [now]
+        span = now - points[0][0]
+        if span <= 0:
+            return points[-1][1]
+        return sum(value * (end - t) for (t, value), end in zip(points, ends, strict=True)) / span

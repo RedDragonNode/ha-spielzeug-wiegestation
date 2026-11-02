@@ -159,3 +159,21 @@ class TestStability:
         assert not tracker.stable(10.0)
         tracker.add(10.0, 100.0)
         assert tracker.stable(12.0)
+
+    def test_mean_weights_each_value_by_how_long_it_held(self) -> None:
+        tracker = StabilityTracker(4.0, 10.0)
+        tracker.add(0.0, 100.0)
+        tracker.add(3.0, 104.0)
+        assert tracker.mean(4.0) == pytest.approx(101.0)
+
+    def test_mean_only_counts_the_window(self) -> None:
+        tracker = StabilityTracker(2.0, 20.0)
+        tracker.add(0.0, 100.0)
+        tracker.add(5.0, 110.0)
+        assert tracker.mean(6.0) == pytest.approx(105.0)  # 100 gilt ab Sekunde 4 noch eine Sekunde, 110 eine Sekunde
+
+    def test_mean_of_a_single_value_is_that_value(self) -> None:
+        tracker = StabilityTracker(2.0, 1.0)
+        tracker.add(0.0, 42.5)
+        assert tracker.mean(0.0) == 42.5
+        assert tracker.mean(30.0) == 42.5

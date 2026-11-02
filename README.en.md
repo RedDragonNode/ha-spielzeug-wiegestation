@@ -19,7 +19,7 @@ The project has two parts in one repo:
 | **Firmware** (ESPHome) | [`esphome/`](esphome/README.md) | runs on the board and reports four raw values |
 | **Integration** | `custom_components/spielzeug_wiegestation` | calculates tare, calibration, weight, "steady" and "occupied" |
 
-> **Version 0.1.0:** The scale measures, calibrates and reports weight, steadiness and occupancy. Recognising individual toys by weight comes in 0.2.0.
+> **Version 0.1.1:** The scale measures, calibrates and reports weight, steadiness and occupancy. Recognising individual toys by weight comes in 0.2.0.
 
 | You want to … | Use |
 |---|---|
@@ -109,12 +109,13 @@ The raw values of the firmware appear on the device page as "Zelle 1" to "Zelle 
 | Setting | Default | Meaning |
 |---|---|---|
 | Steady after | 2 s | the weight may change by no more than the tolerance for this long |
-| Tolerance for "steady" | 2 g | largest swing that still counts as steady |
+| Tolerance for "steady" and display | 2 g | largest swing that still counts as steady. The displayed weight also only changes once it has moved by more than the tolerance |
 | Occupied from | 5 g | from this weight the plate counts as occupied |
 
 ## Notes
 
 - The raw values arrive about once a second when something changes, otherwise every 15 seconds. The integration keeps calculating with the last value. For the recorder it is worth excluding the four raw-value sensors and the cell weights from recording.
+- No scale is ever perfectly still: the HX711 has a noise of about one gram. So that the `Weight` sensor does not write new values to the database all the time, it holds its value as long as the weight only varies by less than the tolerance, and settles on the mean once the scale is steady. If it shows 1 g off after you put a weight on, that is the tolerance, not a calibration error. For finer weighing, lower the tolerance.
 - Without calibration the scale only calculates with a rough estimate, so "steady" already works during calibration. It shows the weight only afterwards.
 - The calibration is stored in Home Assistant (not in the repo) and survives reloads and restarts. Deleting the integration removes it as well.
 

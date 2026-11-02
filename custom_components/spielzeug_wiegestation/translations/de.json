@@ -44,10 +44,10 @@
       },
       "settings": {
         "title": "Schwellen",
-        "description": "„Ruhig“ ist die Waage, wenn das Gewicht in der eingestellten Zeit höchstens um die Toleranz schwankt. „Belegt“ meldet sie ab der Schwelle und gibt es wieder frei, wenn das Gewicht deutlich darunter fällt.",
+        "description": "„Ruhig“ ist die Waage, wenn das Gewicht in der eingestellten Zeit höchstens um die Toleranz schwankt. Das angezeigte Gewicht ändert sich erst, wenn es sich um mehr als die Toleranz bewegt, das Rauschen der Zellen schreibt also nicht ständig neue Werte. „Belegt“ meldet sie ab der Schwelle und gibt es wieder frei, wenn das Gewicht deutlich darunter fällt.",
         "data": {
           "stable_seconds": "Ruhig nach (Sekunden)",
-          "stable_tolerance_g": "Toleranz für „ruhig“ (Gramm)",
+          "stable_tolerance_g": "Toleranz für „ruhig“ und Anzeige (Gramm)",
           "occupied_g": "Belegt ab (Gramm)"
         }
       },

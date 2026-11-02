@@ -40,7 +40,7 @@ class WeightSensor(StationEntity, SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        weight = self.manager.weight
+        weight = self.manager.display_weight
         return None if weight is None else round(weight, 1)
 
 
