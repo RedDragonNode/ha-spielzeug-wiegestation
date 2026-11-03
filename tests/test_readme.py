@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -53,3 +54,27 @@ def test_readme_documents_every_event_the_code_fires(name: str) -> None:
     text = (ROOT / name).read_text(encoding="utf-8")
     for event in events:
         assert f"`{event}`" in text, event
+
+
+EVENT_FIELDS = {"toy", "toy_id", "weight", "total", "station", "entry_id"}
+
+
+@pytest.mark.parametrize("name", ["README.md", "README.en.md"])
+def test_discord_examples_use_real_events_and_fields(name: str) -> None:
+    """Die Beispiele für Discord Hub dürfen nur Ereignisse und Felder nennen, die der Code wirklich schickt."""
+    constants = (ROOT / "custom_components" / "spielzeug_wiegestation" / "const.py").read_text(encoding="utf-8")
+    real = {
+        f"spielzeug_wiegestation_{kind}" for kind in re.findall(r'^EVENT_\w+ = f"\{DOMAIN\}_(\w+)"', constants, re.M)
+    }
+    text = (ROOT / name).read_text(encoding="utf-8")
+    section = text[text.index("### ", text.index("`spielzeug_wiegestation_unknown_removed`")) :].split("\n## ")[0]
+    assert "discord_hub.send_message" in section
+    assert set(re.findall(r"event_type: (\w+)", section)) <= real
+    assert set(re.findall(r"`(spielzeug_wiegestation_\w+)`", section)) <= real
+    used = set(re.findall(r"trigger\.(?:event\.data\.)?(\w+)", section))
+    assert used and used <= EVENT_FIELDS, used - EVENT_FIELDS
+    # die Automation ist gültiges YAML mit Auslöser und Aktion
+    block = re.search(r"```yaml\n(.*?)```", section, re.S).group(1)
+    automation = yaml.safe_load(block)
+    assert automation["triggers"][0]["event_type"] in real
+    assert automation["actions"][0]["action"] == "discord_hub.send_message"

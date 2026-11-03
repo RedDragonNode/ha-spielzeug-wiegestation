@@ -19,7 +19,7 @@ Das Projekt hat zwei Teile in einem Repo:
 | **Firmware** (ESPHome) | [`esphome/`](esphome/README.md) | läuft auf dem Board und meldet vier Rohwerte |
 | **Integration** | `custom_components/spielzeug_wiegestation` | rechnet Tara, Eichung, Gewicht, „ruhig“ und „belegt“ |
 
-> **Stand 0.2.0:** Die Waage misst, eicht, meldet Gewicht, Ruhe und Belegung und erkennt angelernte Spielzeuge am Gewicht.
+> **Stand 0.3.0:** Die Waage misst, eicht, meldet Gewicht, Ruhe und Belegung und erkennt angelernte Spielzeuge am Gewicht.
 
 | Du willst … | Dafür |
 |---|---|
@@ -117,6 +117,41 @@ Bei jeder Änderung schickt die Waage ein Ereignis auf den Bus von Home Assistan
 
 Jedes Ereignis trägt `weight` (die gemessene Änderung in Gramm), `total` (das Gewicht auf der Platte danach), `station` (Name der Waage) und `entry_id`. Bei einem angelernten Spielzeug kommen `toy` (der Name) und `toy_id` dazu.
 
+### Meldung auf Discord
+
+Mit [Discord Hub](https://github.com/RedDragonNode/ha-discord-hub) schickst du bei jedem Ereignis eine Nachricht, auch mit einem Bild der Kamera, die auf die Platte schaut. Dafür brauchst du keine Automation:
+
+1. In Discord Hub *Meldung hinzufügen* und die Vorlage **Eigenes Ereignis** wählen.
+2. Bei **Ereignis** `spielzeug_wiegestation_toy_placed` eintragen, bei **Ziel** deinen Kanal wählen.
+3. **Titel:** `{{ trigger.toy }} liegt auf der Waage`, **Text:** `{{ trigger.weight | round(0) }} g, um {{ now().strftime('%H:%M') }} Uhr`.
+4. **Schnappschuss der Kamera anhängen** einschalten und bei **Kamera** die Kamera wählen, die auf die Platte schaut.
+5. Fürs Wegnehmen legst du eine zweite Meldung mit `spielzeug_wiegestation_toy_removed` an, am besten ohne Bild. Für Unbekanntes eine dritte mit `spielzeug_wiegestation_unknown_placed` (Titel zum Beispiel „Etwas Unbekanntes liegt auf der Waage“, Text `{{ trigger.weight | round(0) }} g`). Dort gibt es kein `trigger.toy`.
+
+Das Ereignis kommt, wenn die Waage das Spielzeug erkannt hat, also etwa zwei Sekunden nach dem Auflegen. Das Spielzeug liegt dann ruhig auf der Platte, und das Bild zeigt es. Lässt sich das Bild nicht holen, geht die Nachricht trotzdem raus.
+
+Mehr Kontrolle gibt eine Automation, hier nur für ein Spielzeug und mit dem Bild als Anhang:
+
+```yaml
+triggers:
+  - trigger: event
+    event_type: spielzeug_wiegestation_toy_placed
+    event_data:
+      toy: Teddy
+actions:
+  - action: discord_hub.send_message
+    target:
+      entity_id: notify.allgemein
+    data:
+      embeds:
+        - title: "{{ trigger.event.data.toy }} liegt auf der Waage"
+          description: "{{ trigger.event.data.weight | round(0) }} g"
+          color: "#2ECC71"
+          timestamp: true
+      files: camera.spielzimmer
+```
+
+Nimm für Meldungen die Ereignisse, nicht die Sensoren der Spielzeuge: Lädt die Integration neu (beim Anlernen, Ändern oder Löschen eines Spielzeugs), springen die Sensoren kurz auf `aus`. Ein Ereignis löst dabei nicht aus.
+
 ## Entities
 
 | Entity | Bedeutung |
@@ -151,7 +186,8 @@ Die Rohwerte der Firmware sind auf der Geräteseite als „Zelle 1“ bis „Zel
 
 ## Geplant
 
-- **0.3.0:** Beispiele für Discord-Meldungen mit Kamera-Schnappschuss über [Discord Hub](https://github.com/RedDragonNode/ha-discord-hub).
+- Die Platte zum Nachbauen: Zeichnungen und 3D-Teile für die Halterungen der Zellen.
+- Die Sensoren der Spielzeuge sollen beim Neuladen nicht mehr kurz auf `aus` springen.
 
 ## Lizenz
 

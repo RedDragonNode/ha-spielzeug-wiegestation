@@ -34,7 +34,7 @@ ota:
   - platform: esphome
 ```
 
-Den ersten Flash machst du per USB, danach gehen Updates über das Netzwerk. Für den Betrieb solltest du `ref: main` durch einen festen Stand ersetzen (z. B. `ref: v0.2.0`) und `refresh` weglassen.
+Den ersten Flash machst du per USB, danach gehen Updates über das Netzwerk. Für den Betrieb solltest du `ref: main` durch einen festen Stand ersetzen (z. B. `ref: v0.3.0`) und `refresh` weglassen.
 
 ## Verdrahtung
 

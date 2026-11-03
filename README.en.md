@@ -19,7 +19,7 @@ The project has two parts in one repo:
 | **Firmware** (ESPHome) | [`esphome/`](esphome/README.md) | runs on the board and reports four raw values |
 | **Integration** | `custom_components/spielzeug_wiegestation` | calculates tare, calibration, weight, "steady" and "occupied" |
 
-> **Version 0.2.0:** The scale measures, calibrates, reports weight, steadiness and occupancy, and recognises taught toys by weight.
+> **Version 0.3.0:** The scale measures, calibrates, reports weight, steadiness and occupancy, and recognises taught toys by weight.
 
 | You want to … | Use |
 |---|---|
@@ -117,6 +117,41 @@ On every change the scale sends an event on the Home Assistant bus. Automations 
 
 Every event carries `weight` (the measured change in grams), `total` (the weight on the plate afterwards), `station` (name of the scale) and `entry_id`. For a taught toy `toy` (the name) and `toy_id` come with it.
 
+### Message on Discord
+
+With [Discord Hub](https://github.com/RedDragonNode/ha-discord-hub) you send a message on every event, also with a picture from the camera that looks at the plate. You need no automation for it:
+
+1. In Discord Hub choose *Add notice* and the template **Own event**.
+2. Enter `spielzeug_wiegestation_toy_placed` as **Event** and choose your channel as **Target**.
+3. **Title:** `{{ trigger.toy }} is on the scale`, **Text:** `{{ trigger.weight | round(0) }} g, at {{ now().strftime('%H:%M') }}`.
+4. Switch on **Attach a snapshot of the camera** and choose the camera that looks at the plate as **Camera**.
+5. For taking it off, add a second notice with `spielzeug_wiegestation_toy_removed`, preferably without a picture. For unknown things add a third with `spielzeug_wiegestation_unknown_placed` (title for example "Something unknown is on the scale", text `{{ trigger.weight | round(0) }} g`). There is no `trigger.toy` there.
+
+The event comes when the scale has recognised the toy, so about two seconds after it was put on. The toy then lies still on the plate and the picture shows it. If the picture cannot be fetched, the message goes out anyway.
+
+An automation gives more control, here for one toy only and with the picture attached:
+
+```yaml
+triggers:
+  - trigger: event
+    event_type: spielzeug_wiegestation_toy_placed
+    event_data:
+      toy: Teddy
+actions:
+  - action: discord_hub.send_message
+    target:
+      entity_id: notify.allgemein
+    data:
+      embeds:
+        - title: "{{ trigger.event.data.toy }} is on the scale"
+          description: "{{ trigger.event.data.weight | round(0) }} g"
+          color: "#2ECC71"
+          timestamp: true
+      files: camera.spielzimmer
+```
+
+For messages use the events, not the toy sensors: when the integration reloads (when you teach, change or delete a toy), the sensors jump to `off` for a moment. An event does not fire then.
+
 ## Entities
 
 | Entity | Meaning |
@@ -151,7 +186,8 @@ The raw values of the firmware appear on the device page as "Zelle 1" to "Zelle 
 
 ## Planned
 
-- **0.3.0:** Examples for Discord messages with a camera snapshot through [Discord Hub](https://github.com/RedDragonNode/ha-discord-hub).
+- The plate to build yourself: drawings and 3D parts for the cell mounts.
+- The toy sensors should no longer jump to `off` for a moment when the integration reloads.
 
 ## License
 
