@@ -11,7 +11,7 @@ import pytest
 COMPONENT = Path(__file__).resolve().parents[1] / "custom_components" / "spielzeug_wiegestation"
 TRANSLATIONS = COMPONENT / "translations"
 # Das Frontend liest jede geschweifte Klammer als Platzhalter und meldet einen Fehler, wenn der Wert fehlt.
-ALLOWED_PLACEHOLDERS = {"corner", "details", "number", "weight"}
+ALLOWED_PLACEHOLDERS = {"corner", "current", "details", "min", "number", "other", "weight"}
 
 
 def _flatten(node: object, prefix: str = "") -> dict[str, str]:
@@ -114,3 +114,30 @@ def test_every_entity_is_named_in_both_languages(texts: dict[str, dict[str, str]
     for lang, entries in texts.items():
         for state in ("not_calibrated", "calibrated"):
             assert f"entity.sensor.calibration.state.{state}" in entries, f"{lang}: {state}"
+
+
+def test_every_error_of_the_toy_flow_has_a_text(texts: dict[str, dict[str, str]]) -> None:
+    errors = set(re.findall(r'errors\[[^\]]+\] = "(\w+)"', _code("subentry_flow.py")))
+    assert errors == {"name_missing", "name_exists", "too_light", "overlap"}
+    for lang, entries in texts.items():
+        for key in errors:
+            assert f"config_subentries.toy.error.{key}" in entries, f"{lang}: {key}"
+
+
+@pytest.mark.parametrize("lang", ["de", "en"])
+def test_the_toy_flow_has_titles_fields_and_only_placeholders_it_fills(
+    texts: dict[str, dict[str, str]], lang: str
+) -> None:
+    entries = texts[lang]
+    assert entries["config_subentries.toy.entry_type"]
+    assert entries["config_subentries.toy.initiate_flow.user"]
+    for step in ("user", "reconfigure"):
+        assert entries[f"config_subentries.toy.step.{step}.title"]
+        for field in ("name", "weight_g", "tolerance_g"):
+            assert entries[f"config_subentries.toy.step.{step}.data.{field}"], f"{step}.{field}"
+    line = next(row for row in _code("subentry_flow.py").splitlines() if row.strip().startswith("placeholders = "))
+    filled = set(re.findall(r'"(\w+)": ', line))
+    assert filled == {"current", "min", "other"}
+    for key, text in entries.items():
+        if key.startswith("config_subentries."):
+            assert set(re.findall(r"\{(\w+)\}", text)) <= filled, f"{lang}: {key}"

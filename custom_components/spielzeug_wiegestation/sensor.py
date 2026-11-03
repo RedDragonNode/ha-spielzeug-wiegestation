@@ -20,6 +20,7 @@ async def async_setup_entry(
     async_add_entities(
         [
             WeightSensor(manager),
+            PlateItemsSensor(manager),
             CalibrationSensor(manager),
             *(CellWeightSensor(manager, index) for index in range(len(manager.cells))),
         ]
@@ -42,6 +43,31 @@ class WeightSensor(StationEntity, SensorEntity):
     def native_value(self) -> float | None:
         weight = self.manager.display_weight
         return None if weight is None else round(weight, 1)
+
+
+class PlateItemsSensor(StationEntity, SensorEntity):
+    """Wie viele Spielzeuge die Erkennung auf der Platte sieht. Die Namen stehen in den Attributen."""
+
+    _attr_translation_key = "plate_items"
+
+    def __init__(self, manager: StationManager) -> None:
+        super().__init__(manager, "plate_items")
+
+    @property
+    def available(self) -> bool:
+        return self.manager.available and self.manager.calibrated
+
+    @property
+    def native_value(self) -> int:
+        return len(self.manager.plate_items)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, list[object]]:
+        items = self.manager.plate_items
+        return {
+            "toys": [item.toy.name for item in items if item.toy],
+            "unknown_g": [round(item.weight_g, 1) for item in items if not item.toy],
+        }
 
 
 class CellWeightSensor(StationEntity, SensorEntity):

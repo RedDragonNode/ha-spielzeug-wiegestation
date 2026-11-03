@@ -22,4 +22,9 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: Wiegest
         "weight": manager.weight,
         "stable": manager.stable,
         "occupied": manager.occupied,
+        "toys": [{"name": toy.name, "weight_g": toy.weight_g, "tolerance_g": toy.tolerance_g} for toy in manager.toys],
+        "on_plate": [
+            {"name": item.toy.name if item.toy else None, "weight_g": round(item.weight_g, 1)}
+            for item in manager.plate_items
+        ],
     }

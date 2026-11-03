@@ -5,12 +5,13 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import pytest
+from homeassistant.config_entries import ConfigSubentryData
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.spielzeug_wiegestation import manager as manager_module
-from custom_components.spielzeug_wiegestation.const import CONF_CELLS, DOMAIN
+from custom_components.spielzeug_wiegestation.const import CONF_CELLS, CONF_TOLERANCE, CONF_WEIGHT, DOMAIN, SUBENTRY_TOY
 
 CELLS = [f"sensor.zelle_{number}" for number in range(1, 5)]
 TITLE = "Spielzeug Wiegestation"
@@ -41,7 +42,18 @@ def clock(monkeypatch: pytest.MonkeyPatch) -> Clock:
     return fake
 
 
-def station_entry(**options: float) -> MockConfigEntry:
+def toy_data(toy_id: str, name: str, weight_g: float, tolerance_g: float) -> ConfigSubentryData:
+    """Ein angelerntes Spielzeug als Untereintrag."""
+    return ConfigSubentryData(
+        data={CONF_WEIGHT: weight_g, CONF_TOLERANCE: tolerance_g},
+        subentry_id=toy_id,
+        subentry_type=SUBENTRY_TOY,
+        title=name,
+        unique_id=None,
+    )
+
+
+def station_entry(toys: Sequence[ConfigSubentryData] = (), **options: float) -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
         title=TITLE,
@@ -49,6 +61,7 @@ def station_entry(**options: float) -> MockConfigEntry:
         data={CONF_CELLS: list(CELLS)},
         options=options,
         minor_version=1,
+        subentries_data=list(toys),
     )
 
 

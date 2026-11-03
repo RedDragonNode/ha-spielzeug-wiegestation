@@ -19,13 +19,16 @@ The project has two parts in one repo:
 | **Firmware** (ESPHome) | [`esphome/`](esphome/README.md) | runs on the board and reports four raw values |
 | **Integration** | `custom_components/spielzeug_wiegestation` | calculates tare, calibration, weight, "steady" and "occupied" |
 
-> **Version 0.1.1:** The scale measures, calibrates and reports weight, steadiness and occupancy. Recognising individual toys by weight comes in 0.2.0.
+> **Version 0.2.0:** The scale measures, calibrates, reports weight, steadiness and occupancy, and recognises taught toys by weight.
 
 | You want to … | Use |
 |---|---|
 | see the weight on the plate | `Weight` (in grams) |
 | know whether the scale is steady | `Scale steady` |
 | know whether something is on the plate | `Occupied` |
+| teach a toy | *Settings → Devices & services → Spielzeug Wiegestation → Teach a toy* |
+| know which toy is on the plate | `Toys on the scale` and one sensor per toy |
+| trigger something for a toy | the events `spielzeug_wiegestation_toy_placed` and `…_toy_removed` |
 | subtract a tray or pad | the `Tare` button |
 | calibrate the scale | *Configure → Calibrate the scale* |
 | check whether a cell misbehaves | the disabled sensors `Weight cell 1` to `4` |
@@ -89,6 +92,31 @@ A cell that is wired the other way round is noticed by the wizard itself. Then o
 
 You set the **tare** with the `Tare` button: put a tray on, press the button, the weight reads 0. Calibrating resets the tare.
 
+## Recognising toys
+
+The scale recognises toys by **weight** only, not by where they sit on the plate. When it has become steady, it compares its weight with that of the last steady period. The difference is what was put on or taken off. If it fits a taught toy (weight plus or minus tolerance), it is that toy.
+
+**Teaching:** Put the toy alone on the scale and wait until `Scale steady` is on. Then *Settings → Devices & services → Spielzeug Wiegestation → Teach a toy*. The measured weight is already filled in, you only give it a name. The **tolerance** sets how far the weight may differ (empty = 5 % of the weight, at least 3 g). Every toy gets a sensor that is `on` while it lies on the plate. You change name, weight and tolerance on the toy's entry, and delete it there too.
+
+- Put toys on one after the other, about two seconds apart, and take them off one after the other. Two toys put on together count as one unknown thing. If you take everything off at once, the scale reports each toy as removed separately.
+- A toy below the "Occupied and recognition from" threshold (default 5 g) is not recognised.
+- Two toys must not overlap (weight plus or minus tolerance). Otherwise teaching does not save them and names the other toy.
+- After a load the empty plate creeps by a few grams. When nothing lies on it, the scale follows the zero up to 10 g so that "Occupied" does not get stuck.
+- After a start the scale sees what already lies on the plate and remembers it without reporting.
+
+### Events
+
+On every change the scale sends an event on the Home Assistant bus. Automations can trigger on it, or you send a message with the **Own event** template of [Discord Hub](https://github.com/RedDragonNode/ha-discord-hub).
+
+| Event | when |
+|---|---|
+| `spielzeug_wiegestation_toy_placed` | a taught toy was put on |
+| `spielzeug_wiegestation_toy_removed` | a taught toy was taken off |
+| `spielzeug_wiegestation_unknown_placed` | something was put on that fits no toy |
+| `spielzeug_wiegestation_unknown_removed` | something unknown was taken off |
+
+Every event carries `weight` (the measured change in grams), `total` (the weight on the plate afterwards), `station` (name of the scale) and `entry_id`. For a taught toy `toy` (the name) and `toy_id` come with it.
+
 ## Entities
 
 | Entity | Meaning |
@@ -97,6 +125,8 @@ You set the **tare** with the `Tare` button: put a tray on, press the button, th
 | `binary_sensor … Scale steady` | the weight changed by no more than the tolerance within the set seconds |
 | `binary_sensor … Occupied` | weight above the threshold (drops out only at 60 % of it, so it does not flicker) |
 | `button … Tare` | sets the weight to zero |
+| `sensor … Toys on the scale` | how many taught toys the recognition sees on the plate, the names are in the attributes |
+| `binary_sensor … <name of the toy>` | `on` while this toy lies on the plate |
 | `sensor … Calibration` (diagnostic) | `Calibrated` or `Not calibrated` |
 | `sensor … Weight cell 1` to `4` (diagnostic, off) | weight each cell carries |
 
@@ -110,7 +140,7 @@ The raw values of the firmware appear on the device page as "Zelle 1" to "Zelle 
 |---|---|---|
 | Steady after | 2 s | the weight may change by no more than the tolerance for this long |
 | Tolerance for "steady" and display | 2 g | largest swing that still counts as steady. The displayed weight also only changes once it has moved by more than the tolerance |
-| Occupied from | 5 g | from this weight the plate counts as occupied |
+| Occupied and recognition from | 5 g | from this weight the plate counts as occupied, and a change of this size counts as placing or removing a toy |
 
 ## Notes
 
@@ -121,7 +151,6 @@ The raw values of the firmware appear on the device page as "Zelle 1" to "Zelle 
 
 ## Planned
 
-- **0.2.0:** Teach toys (name and weight), recognise what is on the plate, with events for automations.
 - **0.3.0:** Examples for Discord messages with a camera snapshot through [Discord Hub](https://github.com/RedDragonNode/ha-discord-hub).
 
 ## License

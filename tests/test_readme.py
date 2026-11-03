@@ -41,3 +41,15 @@ def test_both_languages_have_the_same_structure() -> None:
         assert "esphome/README.md" in text
     assert "README.en.md" in de
     assert "README.md" in en
+
+
+@pytest.mark.parametrize("name", ["README.md", "README.en.md"])
+def test_readme_documents_every_event_the_code_fires(name: str) -> None:
+    constants = (ROOT / "custom_components" / "spielzeug_wiegestation" / "const.py").read_text(encoding="utf-8")
+    events = {
+        f"spielzeug_wiegestation_{kind}" for kind in re.findall(r'^EVENT_\w+ = f"\{DOMAIN\}_(\w+)"', constants, re.M)
+    }
+    assert len(events) == 4
+    text = (ROOT / name).read_text(encoding="utf-8")
+    for event in events:
+        assert f"`{event}`" in text, event

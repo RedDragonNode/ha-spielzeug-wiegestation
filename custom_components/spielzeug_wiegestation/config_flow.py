@@ -6,7 +6,13 @@ import re
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlowWithReload
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    ConfigSubentryFlow,
+    OptionsFlow,
+)
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector
@@ -16,6 +22,7 @@ from .const import (
     CELL_COUNT,
     CONF_CELLS,
     CONF_NAME,
+    CONF_WEIGHT,
     DEFAULT_OCCUPIED,
     DEFAULT_STABLE_SECONDS,
     DEFAULT_STABLE_TOLERANCE,
@@ -26,11 +33,13 @@ from .const import (
     OPT_OCCUPIED,
     OPT_STABLE_SECONDS,
     OPT_STABLE_TOLERANCE,
+    SUBENTRY_TOY,
 )
 from .manager import StationManager
+from .subentry_flow import ToyFlow
 
 DEFAULT_TITLE = "Spielzeug Wiegestation"
-FIELD_WEIGHT = "weight_g"
+FIELD_WEIGHT = CONF_WEIGHT
 
 _CELL_NAME = re.compile(r"Zelle (\d)")
 
@@ -112,6 +121,11 @@ class WiegestationConfigFlow(ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(config_entry: ConfigEntry) -> WiegestationOptionsFlow:
         return WiegestationOptionsFlow()
 
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(cls, config_entry: ConfigEntry) -> dict[str, type[ConfigSubentryFlow]]:
+        return {SUBENTRY_TOY: ToyFlow}
+
 
 def _number(low: float, high: float, step: float, unit: str) -> selector.NumberSelector:
     return selector.NumberSelector(
@@ -121,7 +135,7 @@ def _number(low: float, high: float, step: float, unit: str) -> selector.NumberS
     )
 
 
-class WiegestationOptionsFlow(OptionsFlowWithReload):
+class WiegestationOptionsFlow(OptionsFlow):
     """Menü: Eichen, Schwellen, Eichung zurücksetzen.
 
     Beim Eichen kommt zuerst die leere Platte (Nullpunkt), dann ein bekanntes Gewicht in der Mitte. Das reicht für einen

@@ -16,17 +16,29 @@ from homeassistant.helpers.storage import Store
 from . import scale
 from .const import (
     CONF_CELLS,
+    CONF_TOLERANCE,
+    CONF_WEIGHT,
     DEFAULT_OCCUPIED,
     DEFAULT_STABLE_SECONDS,
     DEFAULT_STABLE_TOLERANCE,
     DOMAIN,
+    EVENT_TOY_PLACED,
+    EVENT_TOY_REMOVED,
+    EVENT_UNKNOWN_PLACED,
+    EVENT_UNKNOWN_REMOVED,
     OCCUPIED_RELEASE,
     OPT_OCCUPIED,
     OPT_STABLE_SECONDS,
     OPT_STABLE_TOLERANCE,
+    SETTLE_INTERVAL,
     STORAGE_KEY,
     STORAGE_VERSION,
+    SUBENTRY_TOY,
+    ZERO_TRACK_MAX_G,
+    ZERO_TRACK_MIN_G,
+    ZERO_TRACK_SAVE_DELAY,
 )
+from .recognition import KIND_PLACED, Detection, PlateItem, PlateTracker, Toy
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,6 +49,15 @@ PROVISIONAL_FACTOR = 1 / 430
 
 def calibration_store(hass: HomeAssistant, entry_id: str) -> Store:
     return Store(hass, STORAGE_VERSION, f"{STORAGE_KEY}.{entry_id}")
+
+
+def toys_of(entry: ConfigEntry) -> list[Toy]:
+    """Die angelernten Spielzeuge: ein Untereintrag je Spielzeug."""
+    return [
+        Toy(sub.subentry_id, sub.title, float(sub.data[CONF_WEIGHT]), float(sub.data[CONF_TOLERANCE]))
+        for sub in entry.subentries.values()
+        if sub.subentry_type == SUBENTRY_TOY
+    ]
 
 
 class StationManager:
@@ -58,6 +79,11 @@ class StationManager:
         self._occupied = False
         self._shown: float | None = None
         self._settled = False  # die Anzeige steht schon auf dem Mittelwert der ruhigen Zeit
+        self.toys = toys_of(entry)
+        self.options = dict(entry.options)  # so war die Waage eingestellt, als sie geladen wurde
+        self._plate = PlateTracker()
+        self._was_stable = False
+        self._last_settle = 0.0
         self._cancel_recheck: CALLBACK_TYPE | None = None
 
     # ------------------------------------------------------------- Laden, Starten, Stoppen
@@ -111,6 +137,22 @@ class StationManager:
         """Das Gewicht, das der Sensor zeigt: bleibt stehen, solange es nur um das Rauschen schwankt."""
         return self._shown
 
+    @property
+    def settled_weight(self) -> float | None:
+        """Das Gewicht, wenn die Waage ruhig und geeicht ist (Mittel der ruhigen Zeit), sonst `None`."""
+        if not self.calibrated or not self.stable:
+            return None
+        return self._tracker.mean(_now())
+
+    @property
+    def plate_items(self) -> list[PlateItem]:
+        """Was nach der Erkennung auf der Platte liegt."""
+        return list(self._plate.items)
+
+    @property
+    def present_toy_ids(self) -> set[str]:
+        return {item.toy.toy_id for item in self._plate.items if item.toy}
+
     def cell_weight(self, index: int) -> float | None:
         if self.raws is None or not self.calibrated:
             return None
@@ -145,10 +187,59 @@ class StationManager:
             self._tracker.reset()
         else:
             self._tracker.add(_now(), scale.net_weight(self._provisional(), self.raws))
+            self._check_settled()
             self._update_occupied()
             self._schedule_recheck()
         self._update_shown()
         self._notify()
+
+    def _check_settled(self) -> None:
+        """Ist die Waage eben ruhig geworden? Dann ist es Zeit zu erkennen, was sich auf der Platte geändert hat.
+
+        Bleibt sie ruhig, wird trotzdem alle paar Sekunden nachgesehen: Die leere Platte kriecht langsam und bleibt
+        dabei ruhig, der Nullpunkt muss aber mitwandern.
+        """
+        stable = self.stable
+        now = _now()
+        if stable and (not self._was_stable or now - self._last_settle >= SETTLE_INTERVAL):
+            self._last_settle = now
+            self._settle()
+        self._was_stable = stable
+
+    def _settle(self) -> None:
+        if not self.calibrated:
+            return
+        weight = self._tracker.mean(_now())
+        for detection in self._plate.settle(weight, self.toys, self._occupied_g):
+            self._fire(detection, weight)
+        if not self._plate.items and ZERO_TRACK_MIN_G <= abs(weight) <= ZERO_TRACK_MAX_G:
+            self._track_zero(weight)
+
+    def _track_zero(self, weight: float) -> None:
+        """Die Platte ist leer und zeigt trotzdem ein paar Gramm (Kriechen, Feuchte): der Nullpunkt wandert mit."""
+        self.calibration.tare_g += weight
+        self._store.async_delay_save(self.calibration.to_dict, ZERO_TRACK_SAVE_DELAY)
+        self._tracker.reset()
+        self._reset_shown()
+        self._plate.rebase(0.0)
+        self._was_stable = False
+
+    def _fire(self, detection: Detection, total: float) -> None:
+        placed = detection.kind == KIND_PLACED
+        if detection.toy:
+            event = EVENT_TOY_PLACED if placed else EVENT_TOY_REMOVED
+        else:
+            event = EVENT_UNKNOWN_PLACED if placed else EVENT_UNKNOWN_REMOVED
+        data: dict[str, object] = {
+            "entry_id": self.entry.entry_id,
+            "station": self.entry.title,
+            "weight": round(detection.weight_g, 1),
+            "total": round(total, 1),
+        }
+        if detection.toy:
+            data["toy"] = detection.toy.name
+            data["toy_id"] = detection.toy.toy_id
+        self.hass.bus.async_fire(event, data)
 
     def _update_shown(self) -> None:
         """Das gezeigte Gewicht folgt erst, wenn es sich um mehr als die Toleranz bewegt hat.
@@ -173,6 +264,10 @@ class StationManager:
         self._shown = None
         self._settled = False
 
+    def _reset_plate(self) -> None:
+        self._plate.reset()
+        self._was_stable = False
+
     def _update_occupied(self) -> None:
         weight = self.weight
         if weight is None:
@@ -191,6 +286,8 @@ class StationManager:
     @callback
     def _recheck(self, _now_utc: object) -> None:
         self._cancel_recheck = None
+        self._check_settled()
+        self._update_occupied()
         self._update_shown()
         self._notify()
 
@@ -212,6 +309,7 @@ class StationManager:
         self.calibration.tare_g = scale.gross_weight(self.calibration, raws)
         await self._save()
         self._reset_shown()  # nach der Tara zeigt der Sensor sofort null
+        self._reset_plate()
         self._refresh()
 
     async def async_set_zero(self) -> None:
@@ -221,6 +319,7 @@ class StationManager:
         await self._save()
         self._tracker.reset()
         self._reset_shown()
+        self._reset_plate()
         self._refresh()
 
     def observe(self) -> list[float]:
@@ -235,6 +334,7 @@ class StationManager:
         await self._save()
         self._tracker.reset()
         self._reset_shown()
+        self._reset_plate()
         self._refresh()
 
     async def async_reset_calibration(self) -> None:
@@ -242,4 +342,5 @@ class StationManager:
         await self._save()
         self._tracker.reset()
         self._reset_shown()
+        self._reset_plate()
         self._refresh()

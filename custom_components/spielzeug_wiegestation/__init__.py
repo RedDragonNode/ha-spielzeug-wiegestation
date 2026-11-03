@@ -9,7 +9,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN
-from .manager import StationManager, calibration_store
+from .manager import StationManager, calibration_store, toys_of
 
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.BUTTON]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
@@ -27,7 +27,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: WiegestationConfigEntry)
     entry.runtime_data = manager
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     manager.async_start()
+    entry.async_on_unload(entry.add_update_listener(_async_entry_changed))
     return True
+
+
+async def _async_entry_changed(hass: HomeAssistant, entry: WiegestationConfigEntry) -> None:
+    """Schwellen oder Spielzeuge wurden geändert: neu laden, damit Erkennung und Entities dazu passen."""
+    manager = getattr(entry, "runtime_data", None)
+    if manager is not None and (toys_of(entry) != manager.toys or dict(entry.options) != manager.options):
+        await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: WiegestationConfigEntry) -> bool:

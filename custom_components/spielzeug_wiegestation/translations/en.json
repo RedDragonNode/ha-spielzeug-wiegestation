@@ -31,6 +31,40 @@
       "reconfigure_successful": "Saved."
     }
   },
+  "config_subentries": {
+    "toy": {
+      "entry_type": "Toy",
+      "initiate_flow": {
+        "user": "Teach a toy"
+      },
+      "step": {
+        "user": {
+          "title": "Teach a toy",
+          "description": "Put the toy alone on the scale and wait until \"Scale steady\" is on. The measured weight (currently {current} g) is already filled in. Give the toy a name. The tolerance sets how far the weight may differ for it to still count as this toy. If you leave it empty it is 5 % of the weight, at least 3 g. Nothing lighter than {min} g works, that is the \"Occupied and recognition from\" threshold in the settings.",
+          "data": {
+            "name": "Name",
+            "weight_g": "Weight (grams)",
+            "tolerance_g": "Tolerance (grams)"
+          }
+        },
+        "reconfigure": {
+          "title": "Change toy",
+          "description": "Change the name, weight or tolerance. The scale currently holds {current} g (empty if it is not steady or not calibrated). Nothing lighter than {min} g works.",
+          "data": {
+            "name": "Name",
+            "weight_g": "Weight (grams)",
+            "tolerance_g": "Tolerance (grams)"
+          }
+        }
+      },
+      "error": {
+        "name_missing": "Give the toy a name.",
+        "name_exists": "There is already a toy with this name.",
+        "too_light": "That is lighter than the \"Occupied and recognition from\" threshold ({min} g). The scale would not recognise it.",
+        "overlap": "The weight also fits \"{other}\". Change the weight or the tolerance so the two do not overlap."
+      }
+    }
+  },
   "options": {
     "step": {
       "init": {
@@ -44,11 +78,11 @@
       },
       "settings": {
         "title": "Thresholds",
-        "description": "The scale is \"steady\" when the weight varies by no more than the tolerance within the set time. The displayed weight only changes once it has moved by more than the tolerance, so the noise of the cells does not write new values all the time. It reports \"occupied\" from the threshold and releases it again when the weight drops well below.",
+        "description": "The scale is \"steady\" when the weight varies by no more than the tolerance within the set time. The displayed weight only changes once it has moved by more than the tolerance, so the noise of the cells does not write new values all the time. It reports \"occupied\" from the threshold and releases it again when the weight drops well below. A change of at least the threshold \"Occupied and recognition from\" counts as placing or removing a toy.",
         "data": {
           "stable_seconds": "Steady after (seconds)",
           "stable_tolerance_g": "Tolerance for \"steady\" and display (grams)",
-          "occupied_g": "Occupied from (grams)"
+          "occupied_g": "Occupied and recognition from (grams)"
         }
       },
       "reset_calibration": {
@@ -110,6 +144,9 @@
           "not_calibrated": "Not calibrated",
           "calibrated": "Calibrated"
         }
+      },
+      "plate_items": {
+        "name": "Toys on the scale"
       }
     },
     "binary_sensor": {

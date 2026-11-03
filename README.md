@@ -19,13 +19,16 @@ Das Projekt hat zwei Teile in einem Repo:
 | **Firmware** (ESPHome) | [`esphome/`](esphome/README.md) | läuft auf dem Board und meldet vier Rohwerte |
 | **Integration** | `custom_components/spielzeug_wiegestation` | rechnet Tara, Eichung, Gewicht, „ruhig“ und „belegt“ |
 
-> **Stand 0.1.1:** Die Waage misst, eicht und meldet Gewicht, Ruhe und Belegung. Das Erkennen einzelner Spielzeuge am Gewicht kommt in 0.2.0.
+> **Stand 0.2.0:** Die Waage misst, eicht, meldet Gewicht, Ruhe und Belegung und erkennt angelernte Spielzeuge am Gewicht.
 
 | Du willst … | Dafür |
 |---|---|
 | das Gewicht auf der Platte sehen | `Gewicht` (in Gramm) |
 | wissen, ob die Waage ruhig ist | `Waage ruhig` |
 | wissen, ob etwas auf der Platte liegt | `Belegt` |
+| ein Spielzeug anlernen | *Einstellungen → Geräte & Dienste → Spielzeug Wiegestation → Spielzeug anlernen* |
+| wissen, welches Spielzeug aufliegt | `Spielzeuge auf der Waage` und je Spielzeug ein Sensor |
+| bei einem Spielzeug etwas auslösen | die Ereignisse `spielzeug_wiegestation_toy_placed` und `…_toy_removed` |
 | eine Schale oder Unterlage abziehen | Taste `Tara` |
 | die Waage eichen | *Konfigurieren → Waage eichen* |
 | prüfen, ob eine Zelle spinnt | die deaktivierten Sensoren `Gewicht Zelle 1` bis `4` |
@@ -89,6 +92,31 @@ Eine Zelle, die andersherum angeschlossen ist, erkennt der Assistent selbst. Dan
 
 Die **Tara** setzt du mit der Taste `Tara`: Schale auflegen, Taste drücken, das Gewicht steht auf 0. Eichen setzt die Tara zurück.
 
+## Spielzeug erkennen
+
+Die Waage erkennt Spielzeug nur am **Gewicht**, nicht an der Lage auf der Platte. Wenn sie ruhig geworden ist, vergleicht sie ihr Gewicht mit dem der letzten ruhigen Zeit. Der Unterschied ist das, was aufgelegt oder weggenommen wurde. Passt er auf ein angelerntes Spielzeug (Gewicht plus oder minus Toleranz), ist es dieses.
+
+**Anlernen:** Leg das Spielzeug allein auf die Waage und warte, bis `Waage ruhig` an ist. Dann *Einstellungen → Geräte & Dienste → Spielzeug Wiegestation → Spielzeug anlernen*. Das gemessene Gewicht ist schon eingetragen, du gibst nur einen Namen. Die **Toleranz** bestimmt, wie weit das Gewicht abweichen darf (leer = 5 % des Gewichts, mindestens 3 g). Jedes Spielzeug bekommt einen Sensor, der `an` ist, solange es auf der Platte liegt. Name, Gewicht und Toleranz änderst du am Eintrag des Spielzeugs, dort löschst du es auch.
+
+- Leg Spielzeuge nacheinander auf, mit etwa zwei Sekunden Pause, und nimm sie nacheinander weg. Zwei Spielzeuge, die zusammen aufgelegt werden, zählen als ein unbekanntes Ding. Nimmst du alles auf einmal herunter, meldet die Waage jedes Spielzeug einzeln als weggenommen.
+- Ein Spielzeug unter der Schwelle „Belegt und Erkennung ab“ (Standard 5 g) wird nicht erkannt.
+- Zwei Spielzeuge dürfen sich nicht überschneiden (Gewicht plus oder minus Toleranz). Das Anlernen speichert sie sonst nicht und nennt das andere Spielzeug.
+- Nach einer Last kriecht die leere Platte um einige Gramm. Liegt nichts auf ihr, führt die Waage den Nullpunkt bis 10 g nach, damit „Belegt“ nicht hängen bleibt.
+- Nach dem Start sieht die Waage, was schon auf der Platte liegt, und merkt es sich ohne Meldung.
+
+### Ereignisse
+
+Bei jeder Änderung schickt die Waage ein Ereignis auf den Bus von Home Assistant. Damit lösen Automationen aus, oder du verschickst eine Meldung mit der Vorlage **Eigenes Ereignis** von [Discord Hub](https://github.com/RedDragonNode/ha-discord-hub).
+
+| Ereignis | wann |
+|---|---|
+| `spielzeug_wiegestation_toy_placed` | ein angelerntes Spielzeug wurde aufgelegt |
+| `spielzeug_wiegestation_toy_removed` | ein angelerntes Spielzeug wurde weggenommen |
+| `spielzeug_wiegestation_unknown_placed` | etwas aufgelegt, das zu keinem Spielzeug passt |
+| `spielzeug_wiegestation_unknown_removed` | etwas Unbekanntes weggenommen |
+
+Jedes Ereignis trägt `weight` (die gemessene Änderung in Gramm), `total` (das Gewicht auf der Platte danach), `station` (Name der Waage) und `entry_id`. Bei einem angelernten Spielzeug kommen `toy` (der Name) und `toy_id` dazu.
+
 ## Entities
 
 | Entity | Bedeutung |
@@ -97,6 +125,8 @@ Die **Tara** setzt du mit der Taste `Tara`: Schale auflegen, Taste drücken, das
 | `binary_sensor … Waage ruhig` | das Gewicht hat sich in den eingestellten Sekunden höchstens um die Toleranz geändert |
 | `binary_sensor … Belegt` | Gewicht über der Schwelle (fällt erst bei 60 % davon wieder aus, damit es nicht flackert) |
 | `button … Tara` | setzt das Gewicht auf null |
+| `sensor … Spielzeuge auf der Waage` | wie viele angelernte Spielzeuge die Erkennung auf der Platte sieht, die Namen stehen in den Attributen |
+| `binary_sensor … <Name des Spielzeugs>` | `an`, solange dieses Spielzeug auf der Platte liegt |
 | `sensor … Eichung` (Diagnose) | `Geeicht` oder `Nicht geeicht` |
 | `sensor … Gewicht Zelle 1` bis `4` (Diagnose, aus) | Gewicht, das jede Zelle trägt |
 
@@ -110,7 +140,7 @@ Die Rohwerte der Firmware sind auf der Geräteseite als „Zelle 1“ bis „Zel
 |---|---|---|
 | Ruhig nach | 2 s | so lange darf sich das Gewicht höchstens um die Toleranz ändern |
 | Toleranz für „ruhig“ und Anzeige | 2 g | größte Schwankung, die noch als ruhig gilt. Das angezeigte Gewicht ändert sich auch erst, wenn es sich um mehr als die Toleranz bewegt |
-| Belegt ab | 5 g | ab diesem Gewicht gilt die Platte als belegt |
+| Belegt und Erkennung ab | 5 g | ab diesem Gewicht gilt die Platte als belegt, und eine Änderung dieser Größe zählt als Auflegen oder Wegnehmen eines Spielzeugs |
 
 ## Hinweise
 
@@ -121,7 +151,6 @@ Die Rohwerte der Firmware sind auf der Geräteseite als „Zelle 1“ bis „Zel
 
 ## Geplant
 
-- **0.2.0:** Spielzeuge anlernen (Name und Gewicht), erkennen, was aufliegt, mit Ereignissen für Automationen.
 - **0.3.0:** Beispiele für Discord-Meldungen mit Kamera-Schnappschuss über [Discord Hub](https://github.com/RedDragonNode/ha-discord-hub).
 
 ## Lizenz

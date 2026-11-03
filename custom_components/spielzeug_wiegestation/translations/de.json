@@ -31,6 +31,40 @@
       "reconfigure_successful": "Gespeichert."
     }
   },
+  "config_subentries": {
+    "toy": {
+      "entry_type": "Spielzeug",
+      "initiate_flow": {
+        "user": "Spielzeug anlernen"
+      },
+      "step": {
+        "user": {
+          "title": "Spielzeug anlernen",
+          "description": "Lege das Spielzeug allein auf die Waage und warte, bis „Waage ruhig“ an ist. Das gemessene Gewicht (gerade {current} g) ist schon eingetragen. Gib dem Spielzeug einen Namen. Die Toleranz bestimmt, wie weit das Gewicht abweichen darf, damit es noch als dieses Spielzeug gilt. Lässt du sie leer, sind es 5 % des Gewichts, mindestens 3 g. Leichter als {min} g geht nicht, das ist die Schwelle „Belegt und Erkennung ab“ in den Einstellungen.",
+          "data": {
+            "name": "Name",
+            "weight_g": "Gewicht (Gramm)",
+            "tolerance_g": "Toleranz (Gramm)"
+          }
+        },
+        "reconfigure": {
+          "title": "Spielzeug ändern",
+          "description": "Ändere Name, Gewicht oder Toleranz. Auf der Waage liegt gerade {current} g (leer, wenn sie nicht ruhig oder nicht geeicht ist). Leichter als {min} g geht nicht.",
+          "data": {
+            "name": "Name",
+            "weight_g": "Gewicht (Gramm)",
+            "tolerance_g": "Toleranz (Gramm)"
+          }
+        }
+      },
+      "error": {
+        "name_missing": "Gib dem Spielzeug einen Namen.",
+        "name_exists": "Es gibt schon ein Spielzeug mit diesem Namen.",
+        "too_light": "Das ist leichter als die Schwelle „Belegt und Erkennung ab“ ({min} g). Die Waage würde es nicht erkennen.",
+        "overlap": "Das Gewicht passt auch zu „{other}“. Ändere Gewicht oder Toleranz, damit sich die beiden nicht überschneiden."
+      }
+    }
+  },
   "options": {
     "step": {
       "init": {
@@ -44,11 +78,11 @@
       },
       "settings": {
         "title": "Schwellen",
-        "description": "„Ruhig“ ist die Waage, wenn das Gewicht in der eingestellten Zeit höchstens um die Toleranz schwankt. Das angezeigte Gewicht ändert sich erst, wenn es sich um mehr als die Toleranz bewegt, das Rauschen der Zellen schreibt also nicht ständig neue Werte. „Belegt“ meldet sie ab der Schwelle und gibt es wieder frei, wenn das Gewicht deutlich darunter fällt.",
+        "description": "„Ruhig“ ist die Waage, wenn das Gewicht in der eingestellten Zeit höchstens um die Toleranz schwankt. Das angezeigte Gewicht ändert sich erst, wenn es sich um mehr als die Toleranz bewegt, das Rauschen der Zellen schreibt also nicht ständig neue Werte. „Belegt“ meldet sie ab der Schwelle und gibt es wieder frei, wenn das Gewicht deutlich darunter fällt. Eine Änderung ab der Schwelle „Belegt und Erkennung ab“ gilt als Auflegen oder Wegnehmen eines Spielzeugs.",
         "data": {
           "stable_seconds": "Ruhig nach (Sekunden)",
           "stable_tolerance_g": "Toleranz für „ruhig“ und Anzeige (Gramm)",
-          "occupied_g": "Belegt ab (Gramm)"
+          "occupied_g": "Belegt und Erkennung ab (Gramm)"
         }
       },
       "reset_calibration": {
@@ -110,6 +144,9 @@
           "not_calibrated": "Nicht geeicht",
           "calibrated": "Geeicht"
         }
+      },
+      "plate_items": {
+        "name": "Spielzeuge auf der Waage"
       }
     },
     "binary_sensor": {
