@@ -19,7 +19,7 @@ The project has two parts in one repo:
 | **Firmware** (ESPHome) | [`esphome/`](esphome/README.md) | runs on the board and reports four raw values |
 | **Integration** | `custom_components/spielzeug_wiegestation` | calculates tare, calibration, weight, "steady" and "occupied" |
 
-> **Version 0.3.0:** The scale measures, calibrates, reports weight, steadiness and occupancy, and recognises taught toys by weight.
+> **Version 0.4.0:** The scale measures, calibrates, reports weight, steadiness and occupancy, and recognises taught toys by weight.
 
 | You want to … | Use |
 |---|---|
@@ -96,7 +96,7 @@ You set the **tare** with the `Tare` button: put a tray on, press the button, th
 
 The scale recognises toys by **weight** only, not by where they sit on the plate. When it has become steady, it compares its weight with that of the last steady period. The difference is what was put on or taken off. If it fits a taught toy (weight plus or minus tolerance), it is that toy.
 
-**Teaching:** Put the toy alone on the scale and wait until `Scale steady` is on. Then *Settings → Devices & services → Spielzeug Wiegestation → Teach a toy*. The measured weight is already filled in, you only give it a name. The **tolerance** sets how far the weight may differ (empty = 5 % of the weight, at least 3 g). Every toy gets a sensor that is `on` while it lies on the plate. You change name, weight and tolerance on the toy's entry, and delete it there too.
+**Teaching:** Put the toy alone on the scale and wait until `Scale steady` is on. Then *Settings → Devices & services → Spielzeug Wiegestation → Teach a toy*. The measured weight is already filled in, you only give it a name. The **tolerance** sets how far the weight may differ (empty = 5 % of the weight, at least 3 g). You can also enter a **description**, it belongs to the profile card. Every toy gets a sensor that is `on` while it lies on the plate. You change name, weight and tolerance on the toy's entry, and delete it there too.
 
 - Put toys on one after the other, about two seconds apart, and take them off one after the other. Two toys put on together count as one unknown thing. If you take everything off at once, the scale reports each toy as removed separately.
 - A toy below the "Occupied and recognition from" threshold (default 5 g) is not recognised.
@@ -114,8 +114,11 @@ On every change the scale sends an event on the Home Assistant bus. Automations 
 | `spielzeug_wiegestation_toy_removed` | a taught toy was taken off |
 | `spielzeug_wiegestation_unknown_placed` | something was put on that fits no toy |
 | `spielzeug_wiegestation_unknown_removed` | something unknown was taken off |
+| `spielzeug_wiegestation_toy_taught` | a toy was taught |
+| `spielzeug_wiegestation_toy_changed` | name, weight, tolerance or description of a toy was changed |
+| `spielzeug_wiegestation_toy_deleted` | a toy was deleted |
 
-Every event carries `weight` (the measured change in grams), `total` (the weight on the plate afterwards), `station` (name of the scale) and `entry_id`. For a taught toy `toy` (the name) and `toy_id` come with it.
+Every event carries `weight` (the measured change in grams), `total` (the weight on the plate afterwards), `station` (name of the scale) and `entry_id`. For a taught toy `toy` (the name), `toy_id` and `thread_id` (the linked thread, otherwise empty) come with it. The events for teaching, changing and deleting carry the profile card: `toy`, `toy_id`, `weight` (the weight of the toy), `tolerance`, `description`, `taught_at` (date), `thread_id`, `station` and `entry_id`.
 
 ### Message on Discord
 
@@ -151,6 +154,112 @@ actions:
 ```
 
 For messages use the events, not the toy sensors: when the integration reloads (when you teach, change or delete a toy), the sensors jump to `off` for a moment. An event does not fire then.
+
+### One thread per toy in a Discord forum
+
+With [Discord Hub](https://github.com/RedDragonNode/ha-discord-hub) every toy gets its own thread in a forum when you teach it, with a profile card and a picture from the camera. Later every placing and removing lands in exactly this thread. For this you need a bot in Discord Hub, the forum as a channel (*Discord Hub → Add channel*, in the example its `notify` entity is called `notify.spielzeug_forum`) and a camera that looks at the plate. In the forum the bot needs the permissions *Create posts*, *Send messages in threads* and, for archiving, *Manage threads*.
+
+This is how it runs:
+
+1. You put the toy on the scale and teach it. While you teach it the camera sees the toy on the plate, that is the picture for the profile card.
+2. The integration sends the event `spielzeug_wiegestation_toy_taught`. The first automation creates the thread with it: the title is the name, the first post is the profile card with weight, tolerance, date and description, plus the camera picture.
+3. Discord Hub answers with the `thread_id`. The service `spielzeug_wiegestation.set_toy_thread` remembers it with the toy, and it then appears in the events and in the `thread_id` attribute of the toy sensor.
+4. The second automation writes every placing and removing into the thread. The third renames the thread when you change the toy, the fourth archives it when you delete it.
+
+```yaml
+# 1. Beim Anlernen: Thread mit Steckbrief und Kamerabild anlegen und merken
+triggers:
+  - trigger: event
+    event_type: spielzeug_wiegestation_toy_taught
+actions:
+  - action: discord_hub.forum_post
+    target:
+      entity_id: notify.spielzeug_forum
+    data:
+      thread_name: "{{ trigger.event.data.toy }}"
+      message: "Neues Spielzeug: {{ trigger.event.data.toy }}"
+      embeds:
+        - title: "{{ trigger.event.data.toy }}"
+          description: "{{ trigger.event.data.description or '–' }}"
+          color: "#2ECC71"
+          fields:
+            - name: "Weight"
+              value: "{{ trigger.event.data.weight | round(0) }} g"
+              inline: true
+            - name: "Tolerance"
+              value: "± {{ trigger.event.data.tolerance | round(0) }} g"
+              inline: true
+            - name: "Taught"
+              value: "{{ trigger.event.data.taught_at }}"
+              inline: true
+      files: camera.spielzimmer
+    response_variable: post
+  - action: spielzeug_wiegestation.set_toy_thread
+    data:
+      toy_id: "{{ trigger.event.data.toy_id }}"
+      thread_id: "{{ post['notify.spielzeug_forum'].thread_id }}"
+```
+
+```yaml
+# 2. Verlauf: Auflegen und Wegnehmen als Nachricht in den Thread des Spielzeugs
+triggers:
+  - trigger: event
+    event_type: spielzeug_wiegestation_toy_placed
+  - trigger: event
+    event_type: spielzeug_wiegestation_toy_removed
+conditions:
+  - condition: template
+    value_template: "{{ trigger.event.data.thread_id != '' }}"
+actions:
+  - action: discord_hub.send_message
+    target:
+      entity_id: notify.spielzeug_forum
+    data:
+      thread_id: "{{ trigger.event.data.thread_id }}"
+      message: >-
+        {{ now().strftime('%H:%M') }} Uhr: {{ trigger.event.data.toy }}
+        {{ 'is on the scale' if trigger.event.event_type.endswith('placed') else 'was taken off' }}
+```
+
+```yaml
+# 3. Name, Gewicht oder Beschreibung geändert: Thread umbenennen
+triggers:
+  - trigger: event
+    event_type: spielzeug_wiegestation_toy_changed
+conditions:
+  - condition: template
+    value_template: "{{ trigger.event.data.thread_id != '' }}"
+actions:
+  - action: discord_hub.update_thread
+    target:
+      entity_id: notify.spielzeug_forum
+    data:
+      thread_id: "{{ trigger.event.data.thread_id }}"
+      name: "{{ trigger.event.data.toy }}"
+  - action: discord_hub.send_message
+    target:
+      entity_id: notify.spielzeug_forum
+    data:
+      thread_id: "{{ trigger.event.data.thread_id }}"
+      message: "Profile updated: {{ trigger.event.data.weight | round(0) }} g, {{ trigger.event.data.description or '–' }}"
+```
+
+```yaml
+# 4. Spielzeug gelöscht: Thread archivieren
+triggers:
+  - trigger: event
+    event_type: spielzeug_wiegestation_toy_deleted
+conditions:
+  - condition: template
+    value_template: "{{ trigger.event.data.thread_id != '' }}"
+actions:
+  - action: discord_hub.update_thread
+    target:
+      entity_id: notify.spielzeug_forum
+    data:
+      thread_id: "{{ trigger.event.data.thread_id }}"
+      archived: true
+```
 
 ## Entities
 

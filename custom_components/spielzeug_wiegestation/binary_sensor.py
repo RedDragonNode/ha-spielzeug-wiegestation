@@ -78,3 +78,15 @@ class ToySensor(StationEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         return self.toy_id in self.manager.present_toy_ids
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        """Der Steckbrief des Spielzeugs."""
+        card = self.manager.cards.get(self.toy_id, {})
+        return {
+            "weight_g": card.get("weight"),
+            "tolerance_g": card.get("tolerance"),
+            "description": card.get("description"),
+            "taught_at": card.get("taught_at"),
+            "thread_id": card.get("thread_id"),
+        }

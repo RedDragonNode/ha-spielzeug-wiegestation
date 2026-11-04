@@ -25,6 +25,9 @@ OCCUPIED_RELEASE = 0.6  # „belegt“ geht unter diesem Anteil der Schwelle wie
 SUBENTRY_TOY = "toy"
 CONF_WEIGHT = "weight_g"  # Gewicht des Spielzeugs in Gramm (Untereintrag) und Feld der Eichung
 CONF_TOLERANCE = "tolerance_g"
+CONF_DESCRIPTION = "description"  # freie Beschreibung des Spielzeugs für den Steckbrief
+CONF_TAUGHT = "taught_at"  # Datum, an dem das Spielzeug angelernt wurde
+CONF_THREAD = "thread_id"  # Thread des Spielzeugs (zum Beispiel in einem Discord-Forum), vom Nutzer verknüpft
 MIN_TOLERANCE_G = 3.0  # Standardtoleranz eines Spielzeugs: 5 % des Gewichts, mindestens so viel
 TOLERANCE_PERCENT = 5.0
 ZERO_TRACK_MIN_G = 1.5  # die leere Platte zeigt mehr als das: der Nullpunkt wird nachgeführt ...
@@ -36,6 +39,10 @@ EVENT_TOY_PLACED = f"{DOMAIN}_toy_placed"
 EVENT_TOY_REMOVED = f"{DOMAIN}_toy_removed"
 EVENT_UNKNOWN_PLACED = f"{DOMAIN}_unknown_placed"
 EVENT_UNKNOWN_REMOVED = f"{DOMAIN}_unknown_removed"
+EVENT_TOY_TAUGHT = f"{DOMAIN}_toy_taught"
+EVENT_TOY_CHANGED = f"{DOMAIN}_toy_changed"
+EVENT_TOY_DELETED = f"{DOMAIN}_toy_deleted"
+SERVICE_SET_TOY_THREAD = "set_toy_thread"
 
 # Eichen
 MIN_LOAD_COUNTS = 2000  # weniger Änderung der Rohwerte (Summe über alle Zellen) gilt als „nichts aufgelegt“

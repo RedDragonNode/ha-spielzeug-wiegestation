@@ -8,8 +8,9 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigSubentryFlow, SubentryFlowResult
 from homeassistant.const import CONF_NAME
 from homeassistant.helpers import selector
+from homeassistant.util import dt as dt_util
 
-from .const import CONF_TOLERANCE, CONF_WEIGHT, DEFAULT_OCCUPIED, OPT_OCCUPIED
+from .const import CONF_DESCRIPTION, CONF_TAUGHT, CONF_TOLERANCE, CONF_WEIGHT, DEFAULT_OCCUPIED, OPT_OCCUPIED
 from .manager import toys_of
 from .recognition import Toy, default_tolerance
 
@@ -56,16 +57,24 @@ class ToyFlow(ConfigSubentryFlow):
                 errors["base"] = "overlap"
                 placeholders["other"] = overlapping.name
             else:
-                data = {CONF_WEIGHT: weight, CONF_TOLERANCE: tolerance}
+                data = {
+                    CONF_WEIGHT: weight,
+                    CONF_TOLERANCE: tolerance,
+                    CONF_DESCRIPTION: str(user_input.get(CONF_DESCRIPTION) or "").strip(),
+                }
                 if own is None:
-                    return self.async_create_entry(title=name, data=data)
-                return self.async_update_and_abort(entry, own, title=name, data=data)
+                    return self.async_create_entry(
+                        title=name, data={**data, CONF_TAUGHT: dt_util.now().date().isoformat()}
+                    )
+                # Datum des Anlernens und Thread bleiben, sie stehen nicht im Formular
+                return self.async_update_and_abort(entry, own, title=name, data_updates=data)
 
         schema = vol.Schema(
             {
                 vol.Required(CONF_NAME): selector.TextSelector(),
                 vol.Required(CONF_WEIGHT): _number(0.5, 20000, 0.1),
                 vol.Optional(CONF_TOLERANCE): _number(0.5, 5000, 0.1),
+                vol.Optional(CONF_DESCRIPTION): selector.TextSelector(selector.TextSelectorConfig(multiline=True)),
             }
         )
         if user_input is not None:

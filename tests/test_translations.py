@@ -11,7 +11,7 @@ import pytest
 COMPONENT = Path(__file__).resolve().parents[1] / "custom_components" / "spielzeug_wiegestation"
 TRANSLATIONS = COMPONENT / "translations"
 # Das Frontend liest jede geschweifte Klammer als Platzhalter und meldet einen Fehler, wenn der Wert fehlt.
-ALLOWED_PLACEHOLDERS = {"corner", "current", "details", "min", "number", "other", "weight"}
+ALLOWED_PLACEHOLDERS = {"corner", "current", "details", "min", "number", "other", "toy_id", "weight"}
 
 
 def _flatten(node: object, prefix: str = "") -> dict[str, str]:

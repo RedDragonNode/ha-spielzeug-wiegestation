@@ -8,19 +8,27 @@ from types import MappingProxyType
 import pytest
 from homeassistant.config_entries import SOURCE_RECONFIGURE, SOURCE_USER, ConfigSubentry
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import async_capture_events, async_fire_time_changed
 
 from custom_components.spielzeug_wiegestation.const import (
+    CONF_DESCRIPTION,
+    CONF_TAUGHT,
+    CONF_THREAD,
     CONF_TOLERANCE,
     CONF_WEIGHT,
     DOMAIN,
+    EVENT_TOY_CHANGED,
+    EVENT_TOY_DELETED,
     EVENT_TOY_PLACED,
     EVENT_TOY_REMOVED,
+    EVENT_TOY_TAUGHT,
     EVENT_UNKNOWN_PLACED,
     EVENT_UNKNOWN_REMOVED,
+    SERVICE_SET_TOY_THREAD,
     SUBENTRY_TOY,
 )
 from custom_components.spielzeug_wiegestation.diagnostics import async_get_config_entry_diagnostics
@@ -280,7 +288,12 @@ async def test_teaching_a_toy_fills_in_the_measured_weight(hass, clock: Clock) -
     assert result["type"] is FlowResultType.CREATE_ENTRY
     (subentry,) = entry.subentries.values()
     assert subentry.title == "Bagger"
-    assert dict(subentry.data) == {"weight_g": 120.4, "tolerance_g": 6.0}  # 5 % des Gewichts
+    assert dict(subentry.data) == {  # Toleranz 5 % des Gewichts, Datum von heute
+        "weight_g": 120.4,
+        "tolerance_g": 6.0,
+        "description": "",
+        "taught_at": dt_util.now().date().isoformat(),
+    }
     await hass.async_block_till_done()
     assert [toy.name for toy in entry.runtime_data.toys] == ["Bagger"]
 
@@ -292,7 +305,8 @@ async def test_teaching_keeps_an_explicit_tolerance(hass, clock: Clock) -> None:
         result["flow_id"], {"name": "Ball", "weight_g": 30.0, "tolerance_g": 7.0}
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert dict(next(iter(entry.subentries.values())).data) == {"weight_g": 30.0, "tolerance_g": 7.0}
+    data = dict(next(iter(entry.subentries.values())).data)
+    assert (data["weight_g"], data["tolerance_g"]) == (30.0, 7.0)
 
 
 async def test_teaching_without_a_steady_scale_leaves_the_weight_empty(hass, clock: Clock) -> None:
@@ -338,7 +352,7 @@ async def test_reconfiguring_a_toy_changes_name_weight_and_tolerance(hass, clock
     assert result["reason"] == "reconfigure_successful"
     teddy = entry.subentries["teddy"]
     assert teddy.title == "Teddy neu"
-    assert dict(teddy.data) == {"weight_g": 255.0, "tolerance_g": 10.0}
+    assert (teddy.data["weight_g"], teddy.data["tolerance_g"]) == (255.0, 10.0)
 
 
 # --------------------------------------------------------------------------- Geräte
@@ -360,3 +374,125 @@ async def test_without_a_device_every_toy_gets_its_own(hass, clock: Clock) -> No
     assert teddy.id != station_device
     assert (teddy.name, teddy.identifiers) == ("Teddy", {(DOMAIN, "teddy")})
     assert entity_id_of(hass, entry, "binary_sensor", "toy_teddy") == "binary_sensor.teddy"
+
+
+# --------------------------------------------------------------------------- Steckbrief und Thread
+def new_toy(title: str, weight: float, tolerance: float, **extra) -> ConfigSubentry:
+    return ConfigSubentry(
+        data=MappingProxyType({CONF_WEIGHT: weight, CONF_TOLERANCE: tolerance, **extra}),
+        subentry_type=SUBENTRY_TOY,
+        title=title,
+        unique_id=None,
+    )
+
+
+async def test_teaching_a_toy_fires_the_event_with_its_card(hass, clock: Clock) -> None:
+    entry, manager = await station(hass, clock, toys=())
+    taught = async_capture_events(hass, EVENT_TOY_TAUGHT)
+    result = await open_flow(hass, entry)
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {"name": "Bagger", "weight_g": 120.0, "description": "  Gelb, mit Schaufel  "}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    (subentry,) = entry.subentries.values()
+    assert [event.data for event in taught] == [
+        {
+            "entry_id": entry.entry_id,
+            "station": "Spielzeug Wiegestation",
+            "toy": "Bagger",
+            "toy_id": subentry.subentry_id,
+            "weight": 120.0,
+            "tolerance": 6.0,
+            "description": "Gelb, mit Schaufel",
+            "taught_at": dt_util.now().date().isoformat(),
+            "thread_id": "",
+        }
+    ]
+    assert entry.runtime_data is not manager  # ein neues Spielzeug lädt die Waage neu
+    # das neue Laden meldet es nicht noch einmal
+    assert len(taught) == 1
+
+
+async def test_changing_a_toy_fires_changed_and_deleting_it_fires_deleted(hass, clock: Clock) -> None:
+    entry, _manager = await station(hass, clock)
+    changed = async_capture_events(hass, EVENT_TOY_CHANGED)
+    deleted = async_capture_events(hass, EVENT_TOY_DELETED)
+    hass.config_entries.async_update_subentry(entry, entry.subentries["teddy"], title="Bär")
+    await hass.async_block_till_done()
+    assert [(event.data["toy"], event.data["toy_id"]) for event in changed] == [("Bär", "teddy")]
+    hass.config_entries.async_remove_subentry(entry, "auto")
+    await hass.async_block_till_done()
+    assert [(event.data["toy"], event.data["toy_id"], event.data["weight"]) for event in deleted] == [
+        ("Auto", "auto", 80.0)
+    ]
+    assert len(changed) == 1
+
+
+async def test_a_new_description_changes_the_card_without_a_reload(hass, clock: Clock) -> None:
+    entry, manager = await station(hass, clock)
+    changed = async_capture_events(hass, EVENT_TOY_CHANGED)
+    teddy = entry.subentries["teddy"]
+    hass.config_entries.async_update_subentry(entry, teddy, data={**teddy.data, CONF_DESCRIPTION: "Braun, 30 cm"})
+    await hass.async_block_till_done()
+    assert entry.runtime_data is manager  # die Erkennung läuft weiter
+    assert [event.data["description"] for event in changed] == ["Braun, 30 cm"]
+    assert state_of(hass, entry, "binary_sensor", "toy_teddy").attributes["description"] == "Braun, 30 cm"
+
+
+async def test_the_toy_sensor_shows_the_card(hass, clock: Clock) -> None:
+    entry, _manager = await station(hass, clock)
+    attributes = state_of(hass, entry, "binary_sensor", "toy_teddy").attributes
+    assert (attributes["weight_g"], attributes["tolerance_g"], attributes["thread_id"]) == (250.0, 12.5, "")
+
+
+async def test_the_thread_service_links_a_toy_without_reloading(hass, clock: Clock) -> None:
+    entry, manager = await station(hass, clock)
+    events = [async_capture_events(hass, name) for name in (EVENT_TOY_CHANGED, EVENT_TOY_TAUGHT, EVENT_TOY_DELETED)]
+    await hass.services.async_call(
+        DOMAIN, SERVICE_SET_TOY_THREAD, {"toy_id": "teddy", "thread_id": " 1234567890123456789 "}, blocking=True
+    )
+    await hass.async_block_till_done()
+    assert entry.subentries["teddy"].data[CONF_THREAD] == "1234567890123456789"
+    assert entry.runtime_data is manager
+    assert all(not captured for captured in events)  # nur der Faden, kein Ändern des Spielzeugs
+    assert state_of(hass, entry, "binary_sensor", "toy_teddy").attributes["thread_id"] == "1234567890123456789"
+    # beim Auflegen und Wegnehmen steht der Thread im Ereignis, bei einem Spielzeug ohne Thread ist er leer
+    placed = async_capture_events(hass, EVENT_TOY_PLACED)
+    await put(hass, clock, 250.0)
+    await put(hass, clock, 330.0)
+    assert [(event.data["toy"], event.data["thread_id"]) for event in placed] == [
+        ("Teddy", "1234567890123456789"),
+        ("Auto", ""),
+    ]
+
+
+async def test_an_empty_thread_removes_the_link(hass, clock: Clock) -> None:
+    entry, _manager = await station(hass, clock)
+    await hass.services.async_call(
+        DOMAIN, SERVICE_SET_TOY_THREAD, {"toy_id": "teddy", "thread_id": "42"}, blocking=True
+    )
+    await hass.services.async_call(DOMAIN, SERVICE_SET_TOY_THREAD, {"toy_id": "teddy", "thread_id": ""}, blocking=True)
+    assert entry.subentries["teddy"].data[CONF_THREAD] == ""
+
+
+async def test_the_thread_service_needs_a_known_toy(hass, clock: Clock) -> None:
+    await station(hass, clock)
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN, SERVICE_SET_TOY_THREAD, {"toy_id": "gibt-es-nicht", "thread_id": "1"}, blocking=True
+        )
+
+
+async def test_reconfiguring_keeps_the_thread_and_the_taught_date(hass, clock: Clock) -> None:
+    toy = toy_data("teddy", "Teddy", 250.0, 12.5)
+    toy["data"] = {**toy["data"], CONF_THREAD: "777", CONF_TAUGHT: "2026-10-01", CONF_DESCRIPTION: "alt"}
+    entry, _manager = await station(hass, clock, toys=(toy,))
+    result = await open_flow(hass, entry, SOURCE_RECONFIGURE, "teddy")
+    assert suggested(result)["description"] == "alt"
+    result = await hass.config_entries.subentries.async_configure(
+        result["flow_id"], {"name": "Teddy", "weight_g": 250.0, "tolerance_g": 12.5, "description": "neu"}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    data = entry.subentries["teddy"].data
+    assert (data[CONF_THREAD], data[CONF_TAUGHT], data[CONF_DESCRIPTION]) == ("777", "2026-10-01", "neu")

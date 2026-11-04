@@ -44,7 +44,8 @@
           "data": {
             "name": "Name",
             "weight_g": "Weight (grams)",
-            "tolerance_g": "Tolerance (grams)"
+            "tolerance_g": "Tolerance (grams)",
+            "description": "Description (optional)"
           }
         },
         "reconfigure": {
@@ -53,7 +54,8 @@
           "data": {
             "name": "Name",
             "weight_g": "Weight (grams)",
-            "tolerance_g": "Tolerance (grams)"
+            "tolerance_g": "Tolerance (grams)",
+            "description": "Description (optional)"
           }
         }
       },
@@ -169,6 +171,25 @@
     },
     "not_calibrated": {
       "message": "The scale is not calibrated yet. You can calibrate it under \"Configure\"."
+    },
+    "unknown_toy": {
+      "message": "There is no toy with the ID {toy_id}."
+    }
+  },
+  "services": {
+    "set_toy_thread": {
+      "name": "Link toy to thread",
+      "description": "Remembers the ID of the toy's thread, for example from a Discord forum. It then appears in the events for placing and removing. An empty ID removes the link.",
+      "fields": {
+        "toy_id": {
+          "name": "ID of the toy",
+          "description": "The `toy_id` from the event for teaching."
+        },
+        "thread_id": {
+          "name": "ID of the thread",
+          "description": "For example the `thread_id` that Discord Hub returns when it creates the forum post."
+        }
+      }
     }
   }
 }

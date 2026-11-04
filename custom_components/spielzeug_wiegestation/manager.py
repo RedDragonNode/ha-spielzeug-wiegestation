@@ -6,7 +6,7 @@ import logging
 from collections.abc import Sequence
 from time import monotonic as _now
 
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -16,14 +16,20 @@ from homeassistant.helpers.storage import Store
 from . import scale
 from .const import (
     CONF_CELLS,
+    CONF_DESCRIPTION,
+    CONF_TAUGHT,
+    CONF_THREAD,
     CONF_TOLERANCE,
     CONF_WEIGHT,
     DEFAULT_OCCUPIED,
     DEFAULT_STABLE_SECONDS,
     DEFAULT_STABLE_TOLERANCE,
     DOMAIN,
+    EVENT_TOY_CHANGED,
+    EVENT_TOY_DELETED,
     EVENT_TOY_PLACED,
     EVENT_TOY_REMOVED,
+    EVENT_TOY_TAUGHT,
     EVENT_UNKNOWN_PLACED,
     EVENT_UNKNOWN_REMOVED,
     OCCUPIED_RELEASE,
@@ -60,6 +66,28 @@ def toys_of(entry: ConfigEntry) -> list[Toy]:
     ]
 
 
+def toy_card(entry: ConfigEntry, subentry: ConfigSubentry) -> dict[str, object]:
+    """Der Steckbrief eines Spielzeugs: so steht er in den Ereignissen zum Anlernen, Ändern und Löschen."""
+    data = subentry.data
+    return {
+        "entry_id": entry.entry_id,
+        "station": entry.title,
+        "toy": subentry.title,
+        "toy_id": subentry.subentry_id,
+        "weight": float(data[CONF_WEIGHT]),
+        "tolerance": float(data[CONF_TOLERANCE]),
+        "description": str(data.get(CONF_DESCRIPTION, "")),
+        "taught_at": str(data.get(CONF_TAUGHT, "")),
+        "thread_id": str(data.get(CONF_THREAD, "")),
+    }
+
+
+def cards_of(entry: ConfigEntry) -> dict[str, dict[str, object]]:
+    return {
+        sub.subentry_id: toy_card(entry, sub) for sub in entry.subentries.values() if sub.subentry_type == SUBENTRY_TOY
+    }
+
+
 class StationManager:
     """Hält Eichung und aktuelle Werte und meldet Änderungen an die Entities."""
 
@@ -80,6 +108,7 @@ class StationManager:
         self._shown: float | None = None
         self._settled = False  # die Anzeige steht schon auf dem Mittelwert der ruhigen Zeit
         self.toys = toys_of(entry)
+        self.cards = cards_of(entry)  # Steckbriefe, so wie sie zuletzt gemeldet wurden
         self.options = dict(entry.options)  # so war die Waage eingestellt, als sie geladen wurde
         self._plate = PlateTracker()
         self._was_stable = False
@@ -239,7 +268,30 @@ class StationManager:
         if detection.toy:
             data["toy"] = detection.toy.name
             data["toy_id"] = detection.toy.toy_id
+            data["thread_id"] = self.cards.get(detection.toy.toy_id, {}).get("thread_id", "")
         self.hass.bus.async_fire(event, data)
+
+    @callback
+    def async_update_toys(self) -> bool:
+        """Spielzeuge wurden angelernt, geändert oder gelöscht: meldet es und sagt, ob die Erkennung neu laden muss.
+
+        Eine Änderung der Beschreibung oder des Threads ändert nur den Steckbrief, die Erkennung läuft weiter.
+        """
+        new = cards_of(self.entry)
+        for toy_id, card in new.items():
+            old = self.cards.get(toy_id)
+            if old is None:
+                self.hass.bus.async_fire(EVENT_TOY_TAUGHT, card)
+            elif {key: value for key, value in old.items() if key != "thread_id"} != {
+                key: value for key, value in card.items() if key != "thread_id"
+            }:
+                self.hass.bus.async_fire(EVENT_TOY_CHANGED, card)
+        for toy_id, card in self.cards.items():
+            if toy_id not in new:
+                self.hass.bus.async_fire(EVENT_TOY_DELETED, card)
+        self.cards = new
+        self._notify()
+        return toys_of(self.entry) != self.toys
 
     def _update_shown(self) -> None:
         """Das gezeigte Gewicht folgt erst, wenn es sich um mehr als die Toleranz bewegt hat.

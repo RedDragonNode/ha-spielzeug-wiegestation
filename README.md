@@ -19,7 +19,7 @@ Das Projekt hat zwei Teile in einem Repo:
 | **Firmware** (ESPHome) | [`esphome/`](esphome/README.md) | läuft auf dem Board und meldet vier Rohwerte |
 | **Integration** | `custom_components/spielzeug_wiegestation` | rechnet Tara, Eichung, Gewicht, „ruhig“ und „belegt“ |
 
-> **Stand 0.3.0:** Die Waage misst, eicht, meldet Gewicht, Ruhe und Belegung und erkennt angelernte Spielzeuge am Gewicht.
+> **Stand 0.4.0:** Die Waage misst, eicht, meldet Gewicht, Ruhe und Belegung und erkennt angelernte Spielzeuge am Gewicht.
 
 | Du willst … | Dafür |
 |---|---|
@@ -96,7 +96,7 @@ Die **Tara** setzt du mit der Taste `Tara`: Schale auflegen, Taste drücken, das
 
 Die Waage erkennt Spielzeug nur am **Gewicht**, nicht an der Lage auf der Platte. Wenn sie ruhig geworden ist, vergleicht sie ihr Gewicht mit dem der letzten ruhigen Zeit. Der Unterschied ist das, was aufgelegt oder weggenommen wurde. Passt er auf ein angelerntes Spielzeug (Gewicht plus oder minus Toleranz), ist es dieses.
 
-**Anlernen:** Leg das Spielzeug allein auf die Waage und warte, bis `Waage ruhig` an ist. Dann *Einstellungen → Geräte & Dienste → Spielzeug Wiegestation → Spielzeug anlernen*. Das gemessene Gewicht ist schon eingetragen, du gibst nur einen Namen. Die **Toleranz** bestimmt, wie weit das Gewicht abweichen darf (leer = 5 % des Gewichts, mindestens 3 g). Jedes Spielzeug bekommt einen Sensor, der `an` ist, solange es auf der Platte liegt. Name, Gewicht und Toleranz änderst du am Eintrag des Spielzeugs, dort löschst du es auch.
+**Anlernen:** Leg das Spielzeug allein auf die Waage und warte, bis `Waage ruhig` an ist. Dann *Einstellungen → Geräte & Dienste → Spielzeug Wiegestation → Spielzeug anlernen*. Das gemessene Gewicht ist schon eingetragen, du gibst nur einen Namen. Die **Toleranz** bestimmt, wie weit das Gewicht abweichen darf (leer = 5 % des Gewichts, mindestens 3 g). Dazu kannst du eine **Beschreibung** eintragen, sie gehört zum Steckbrief. Jedes Spielzeug bekommt einen Sensor, der `an` ist, solange es auf der Platte liegt. Name, Gewicht und Toleranz änderst du am Eintrag des Spielzeugs, dort löschst du es auch.
 
 - Leg Spielzeuge nacheinander auf, mit etwa zwei Sekunden Pause, und nimm sie nacheinander weg. Zwei Spielzeuge, die zusammen aufgelegt werden, zählen als ein unbekanntes Ding. Nimmst du alles auf einmal herunter, meldet die Waage jedes Spielzeug einzeln als weggenommen.
 - Ein Spielzeug unter der Schwelle „Belegt und Erkennung ab“ (Standard 5 g) wird nicht erkannt.
@@ -114,8 +114,11 @@ Bei jeder Änderung schickt die Waage ein Ereignis auf den Bus von Home Assistan
 | `spielzeug_wiegestation_toy_removed` | ein angelerntes Spielzeug wurde weggenommen |
 | `spielzeug_wiegestation_unknown_placed` | etwas aufgelegt, das zu keinem Spielzeug passt |
 | `spielzeug_wiegestation_unknown_removed` | etwas Unbekanntes weggenommen |
+| `spielzeug_wiegestation_toy_taught` | ein Spielzeug wurde angelernt |
+| `spielzeug_wiegestation_toy_changed` | Name, Gewicht, Toleranz oder Beschreibung eines Spielzeugs wurden geändert |
+| `spielzeug_wiegestation_toy_deleted` | ein Spielzeug wurde gelöscht |
 
-Jedes Ereignis trägt `weight` (die gemessene Änderung in Gramm), `total` (das Gewicht auf der Platte danach), `station` (Name der Waage) und `entry_id`. Bei einem angelernten Spielzeug kommen `toy` (der Name) und `toy_id` dazu.
+Jedes Ereignis trägt `weight` (die gemessene Änderung in Gramm), `total` (das Gewicht auf der Platte danach), `station` (Name der Waage) und `entry_id`. Bei einem angelernten Spielzeug kommen `toy` (der Name), `toy_id` und `thread_id` (der verknüpfte Thread, sonst leer) dazu. Die Ereignisse zum Anlernen, Ändern und Löschen tragen den Steckbrief: `toy`, `toy_id`, `weight` (das Gewicht des Spielzeugs), `tolerance`, `description`, `taught_at` (Datum), `thread_id`, `station` und `entry_id`.
 
 ### Meldung auf Discord
 
@@ -151,6 +154,112 @@ actions:
 ```
 
 Nimm für Meldungen die Ereignisse, nicht die Sensoren der Spielzeuge: Lädt die Integration neu (beim Anlernen, Ändern oder Löschen eines Spielzeugs), springen die Sensoren kurz auf `aus`. Ein Ereignis löst dabei nicht aus.
+
+### Ein Thread je Spielzeug im Discord-Forum
+
+Mit [Discord Hub](https://github.com/RedDragonNode/ha-discord-hub) bekommt jedes Spielzeug beim Anlernen einen eigenen Thread in einem Forum, mit Steckbrief und einem Bild der Kamera. Später landet jedes Auflegen und Wegnehmen in genau diesem Thread. Dafür brauchst du einen Bot in Discord Hub, das Forum als Kanal (*Discord Hub → Kanal hinzufügen*, im Beispiel heißt dessen `notify`-Entity `notify.spielzeug_forum`) und eine Kamera, die auf die Platte schaut. Der Bot braucht im Forum die Berechtigungen *Beiträge erstellen*, *Nachrichten in Threads senden* und fürs Archivieren *Threads verwalten*.
+
+So läuft es ab:
+
+1. Du legst das Spielzeug auf die Waage und lernst es an. Beim Anlernen siehst du die Kamera das Spielzeug auf der Platte, das ist das Bild für den Steckbrief.
+2. Die Integration schickt das Ereignis `spielzeug_wiegestation_toy_taught`. Die erste Automation legt damit den Thread an: Der Titel ist der Name, der erste Beitrag ist der Steckbrief mit Gewicht, Toleranz, Datum und Beschreibung, dazu kommt das Kamerabild.
+3. Discord Hub antwortet mit der `thread_id`. Der Dienst `spielzeug_wiegestation.set_toy_thread` merkt sie sich beim Spielzeug, sie steht danach in den Ereignissen und im Attribut `thread_id` des Spielzeug-Sensors.
+4. Die zweite Automation schreibt jedes Auflegen und Wegnehmen in den Thread. Die dritte benennt den Thread um, wenn du das Spielzeug änderst, die vierte archiviert ihn, wenn du es löschst.
+
+```yaml
+# 1. Beim Anlernen: Thread mit Steckbrief und Kamerabild anlegen und merken
+triggers:
+  - trigger: event
+    event_type: spielzeug_wiegestation_toy_taught
+actions:
+  - action: discord_hub.forum_post
+    target:
+      entity_id: notify.spielzeug_forum
+    data:
+      thread_name: "{{ trigger.event.data.toy }}"
+      message: "Neues Spielzeug: {{ trigger.event.data.toy }}"
+      embeds:
+        - title: "{{ trigger.event.data.toy }}"
+          description: "{{ trigger.event.data.description or '–' }}"
+          color: "#2ECC71"
+          fields:
+            - name: "Gewicht"
+              value: "{{ trigger.event.data.weight | round(0) }} g"
+              inline: true
+            - name: "Toleranz"
+              value: "± {{ trigger.event.data.tolerance | round(0) }} g"
+              inline: true
+            - name: "Angelernt"
+              value: "{{ trigger.event.data.taught_at }}"
+              inline: true
+      files: camera.spielzimmer
+    response_variable: post
+  - action: spielzeug_wiegestation.set_toy_thread
+    data:
+      toy_id: "{{ trigger.event.data.toy_id }}"
+      thread_id: "{{ post['notify.spielzeug_forum'].thread_id }}"
+```
+
+```yaml
+# 2. Verlauf: Auflegen und Wegnehmen als Nachricht in den Thread des Spielzeugs
+triggers:
+  - trigger: event
+    event_type: spielzeug_wiegestation_toy_placed
+  - trigger: event
+    event_type: spielzeug_wiegestation_toy_removed
+conditions:
+  - condition: template
+    value_template: "{{ trigger.event.data.thread_id != '' }}"
+actions:
+  - action: discord_hub.send_message
+    target:
+      entity_id: notify.spielzeug_forum
+    data:
+      thread_id: "{{ trigger.event.data.thread_id }}"
+      message: >-
+        {{ now().strftime('%H:%M') }} Uhr: {{ trigger.event.data.toy }}
+        {{ 'liegt auf der Waage' if trigger.event.event_type.endswith('placed') else 'wurde weggenommen' }}
+```
+
+```yaml
+# 3. Name, Gewicht oder Beschreibung geändert: Thread umbenennen
+triggers:
+  - trigger: event
+    event_type: spielzeug_wiegestation_toy_changed
+conditions:
+  - condition: template
+    value_template: "{{ trigger.event.data.thread_id != '' }}"
+actions:
+  - action: discord_hub.update_thread
+    target:
+      entity_id: notify.spielzeug_forum
+    data:
+      thread_id: "{{ trigger.event.data.thread_id }}"
+      name: "{{ trigger.event.data.toy }}"
+  - action: discord_hub.send_message
+    target:
+      entity_id: notify.spielzeug_forum
+    data:
+      thread_id: "{{ trigger.event.data.thread_id }}"
+      message: "Steckbrief aktualisiert: {{ trigger.event.data.weight | round(0) }} g, {{ trigger.event.data.description or '–' }}"
+```
+
+```yaml
+# 4. Spielzeug gelöscht: Thread archivieren
+triggers:
+  - trigger: event
+    event_type: spielzeug_wiegestation_toy_deleted
+conditions:
+  - condition: template
+    value_template: "{{ trigger.event.data.thread_id != '' }}"
+actions:
+  - action: discord_hub.update_thread
+    target:
+      entity_id: notify.spielzeug_forum
+    data:
+      thread_id: "{{ trigger.event.data.thread_id }}"
+      archived: true
+```
 
 ## Entities
 

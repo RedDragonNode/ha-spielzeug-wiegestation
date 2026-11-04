@@ -1,0 +1,12 @@
+set_toy_thread:
+  fields:
+    toy_id:
+      required: true
+      example: "01JABCDEF1234567890ABCDEFG"
+      selector:
+        text:
+    thread_id:
+      required: true
+      example: "1234567890123456789"
+      selector:
+        text:

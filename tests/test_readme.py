@@ -50,13 +50,24 @@ def test_readme_documents_every_event_the_code_fires(name: str) -> None:
     events = {
         f"spielzeug_wiegestation_{kind}" for kind in re.findall(r'^EVENT_\w+ = f"\{DOMAIN\}_(\w+)"', constants, re.M)
     }
-    assert len(events) == 4
+    assert len(events) == 7
     text = (ROOT / name).read_text(encoding="utf-8")
     for event in events:
         assert f"`{event}`" in text, event
 
 
-EVENT_FIELDS = {"toy", "toy_id", "weight", "total", "station", "entry_id"}
+EVENT_FIELDS = {
+    "toy",
+    "toy_id",
+    "weight",
+    "tolerance",
+    "total",
+    "station",
+    "entry_id",
+    "description",
+    "taught_at",
+    "thread_id",
+}
 
 
 @pytest.mark.parametrize("name", ["README.md", "README.en.md"])
@@ -71,10 +82,18 @@ def test_discord_examples_use_real_events_and_fields(name: str) -> None:
     assert "discord_hub.send_message" in section
     assert set(re.findall(r"event_type: (\w+)", section)) <= real
     assert set(re.findall(r"`(spielzeug_wiegestation_\w+)`", section)) <= real
-    used = set(re.findall(r"trigger\.(?:event\.data\.)?(\w+)", section))
+    used = set(re.findall(r"trigger\.(?:event\.data\.)?(\w+)", section)) - {"event"}
     assert used and used <= EVENT_FIELDS, used - EVENT_FIELDS
-    # die Automation ist gültiges YAML mit Auslöser und Aktion
-    block = re.search(r"```yaml\n(.*?)```", section, re.S).group(1)
-    automation = yaml.safe_load(block)
-    assert automation["triggers"][0]["event_type"] in real
-    assert automation["actions"][0]["action"] == "discord_hub.send_message"
+    # alle Automationen sind gültiges YAML mit echten Ereignissen und bekannten Aktionen
+    actions_known = {
+        "discord_hub.send_message",
+        "discord_hub.forum_post",
+        "discord_hub.update_thread",
+        "spielzeug_wiegestation.set_toy_thread",
+    }
+    blocks = re.findall(r"```yaml\n(.*?)```", section, re.S)
+    assert blocks
+    for block in blocks:
+        automation = yaml.safe_load(block)
+        assert all(trigger["event_type"] in real for trigger in automation["triggers"])
+        assert all(action["action"] in actions_known for action in automation["actions"])

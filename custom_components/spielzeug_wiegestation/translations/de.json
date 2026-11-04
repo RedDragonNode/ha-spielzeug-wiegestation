@@ -44,7 +44,8 @@
           "data": {
             "name": "Name",
             "weight_g": "Gewicht (Gramm)",
-            "tolerance_g": "Toleranz (Gramm)"
+            "tolerance_g": "Toleranz (Gramm)",
+            "description": "Beschreibung (optional)"
           }
         },
         "reconfigure": {
@@ -53,7 +54,8 @@
           "data": {
             "name": "Name",
             "weight_g": "Gewicht (Gramm)",
-            "tolerance_g": "Toleranz (Gramm)"
+            "tolerance_g": "Toleranz (Gramm)",
+            "description": "Beschreibung (optional)"
           }
         }
       },
@@ -169,6 +171,25 @@
     },
     "not_calibrated": {
       "message": "Die Waage ist noch nicht geeicht. Eichen geht unter „Konfigurieren“."
+    },
+    "unknown_toy": {
+      "message": "Es gibt kein Spielzeug mit der Kennung {toy_id}."
+    }
+  },
+  "services": {
+    "set_toy_thread": {
+      "name": "Spielzeug mit Thread verknüpfen",
+      "description": "Merkt sich beim Spielzeug die Kennung seines Threads, zum Beispiel aus einem Discord-Forum. Sie steht danach in den Ereignissen beim Auflegen und Wegnehmen. Eine leere Kennung löst die Verknüpfung.",
+      "fields": {
+        "toy_id": {
+          "name": "Kennung des Spielzeugs",
+          "description": "Die `toy_id` aus dem Ereignis zum Anlernen."
+        },
+        "thread_id": {
+          "name": "Kennung des Threads",
+          "description": "Zum Beispiel die `thread_id`, die Discord Hub beim Anlegen des Forum-Posts zurückgibt."
+        }
+      }
     }
   }
 }
